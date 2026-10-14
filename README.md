@@ -1,11 +1,15 @@
+# ![SevMech](images/icon.png) SevMech
 
-# ![AnoMech](images/icon.png) AnoMech
-
-*Another FFXIV mechanics simulator*
+*Severe Mechanics: an FFXIV mechanics simulator*
 
 ---
- 
-Simulate FFXIV raid mechanics client-side for solo practice. Go to any Inn, open the plugin with `/anomech` and start practicing!
+
+SevMech is a fork of [AnoMech](https://github.com/anomek/AnoMech) by Anomek. It keeps everything AnoMech has and expands
+on it with more fights and strats, contributing back upstream where possible. The plugin is opened with `/sevmech`
+(or `/sev`; `/anomech` and `/ano` still work). SevMech keeps AnoMech's internal name, so only one of the two can be
+installed at a time.
+
+Simulate FFXIV raid mechanics client-side for solo practice. Go to any Inn, open the plugin with `/sevmech` and start practicing!
 
 
 Thanks to improvemnts by [WorstAquaPlayer](https://github.com/WorstAquaPlayer) plugin is quite stable now! No more 
@@ -29,7 +33,14 @@ As this feature is still in beta, some edge cases and less common interactions m
 
 ## Installation
 
-See: https://github.com/anomek/MyDalamudPlugins
+Add this custom repository in Dalamud (`/xlsettings` → Experimental → Custom Plugin Repositories), then install SevMech
+from the plugin installer:
+
+```
+https://raw.githubusercontent.com/refrakts/SevMech/sevmech-release/pluginmaster.json
+```
+
+For upstream AnoMech, see: https://github.com/anomek/MyDalamudPlugins
 
 ## Currently implemented:
 - Dancing Mad (Ultimate)
@@ -89,6 +100,9 @@ Thanks for contributors:
 * [WorstAquaPlayer](https://github.com/WorstAquaPlayer) - rewriting core & fixing crashes, scenarios for uwu
 * [Wydox](https://github.com/Wydox) - EU strats for Forsaken, UMAD Exaflares, core improvements
 * [RoarkGit](https://github.com/RoarkGit) - UMAD Celestriad, UCOB exas, win streaks
+
+SevMech is built on [AnoMech](https://github.com/anomek/AnoMech) by [Anomek](https://github.com/anomek); everything
+below applies to it too.
 
 AnoMech leans heavily on the work of other Dalamud plugins. Huge thanks to their authors!  
 Without them, the following would not be possible:

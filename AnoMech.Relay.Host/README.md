@@ -478,7 +478,7 @@ Bans and limit changes live in memory only — they reset when the relay restart
 
 ## Configuring the plugin
 
-Open the Multiplayer screen (`/anomech mp`, or the **Multiplayer** button in the main
+Open the Multiplayer screen (`/sevmech mp`, or the **Multiplayer** button in the main
 window while in an inn) and type your relay's address into the **Server** field. Just the address is enough (`relay.example.com`, or
 `203.0.113.5:7890` without TLS) — the plugin tries `wss://` first and falls back to
 `ws://` only if that relay doesn't support it, telling you which one it used. An
