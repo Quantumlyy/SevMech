@@ -101,7 +101,7 @@ public unsafe class MainWindow : Window, IDisposable
     {
         var v = Assembly.GetExecutingAssembly().GetName().Version;
         var version = v is null ? "" : $" v{v.Major}.{v.Minor}.{v.Build}.{v.Revision}";
-        return $"AnoMech{version}###MainWindow";
+        return $"SevMech{version}###MainWindow";
     }
 
     public MainWindow(Plugin plugin)
@@ -137,7 +137,7 @@ public unsafe class MainWindow : Window, IDisposable
         };
         TitleBarButtons.Add(autoCollapseButton);
 
-        // Small gear opens the settings window (same toggle as /anomech config).
+        // Small gear opens the settings window (same toggle as /sevmech config).
         TitleBarButtons.Add(new TitleBarButton
         {
             Icon = FontAwesomeIcon.Cog,

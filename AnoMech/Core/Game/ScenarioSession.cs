@@ -97,7 +97,7 @@ public sealed class ScenarioSession
 
         // Per-player settings the fight can't produce together. Empty for a peer and for solo,
         // so only a host's own setup is refused here; this is the funnel every entry point
-        // (both windows, /ano start) passes through.
+        // (both windows, /sev start) passes through.
         if (scenario.SettingsConflicts is { Count: > 0 } conflicts)
         {
             foreach (var conflict in conflicts)
@@ -158,7 +158,7 @@ public sealed class ScenarioSession
         instance.PlacePlayer();
         Natives.UserActions.OnScenarioStart();
         StartMusic();
-        Plugin.ChatGui.Print(new XivChatEntry { Type = XivChatType.SystemMessage, Message = $"[AnoMech] Starting: {Scenario.FullName()}{(Mode == SessionMode.Local ? " (Solo)" : "")}" });
+        Plugin.ChatGui.Print(new XivChatEntry { Type = XivChatType.SystemMessage, Message = $"[SevMech] Starting: {Scenario.FullName()}{(Mode == SessionMode.Local ? " (Solo)" : "")}" });
     }
 
     public void Tick(float deltaSeconds)

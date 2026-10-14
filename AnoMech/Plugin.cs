@@ -39,8 +39,10 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
     [PluginService] internal static IGameConfig GameConfig { get; private set; } = null!;
 
-    private const string CommandName = "/anomech";
-    private const string CommandAlias = "/ano";
+    private const string CommandName = "/sevmech";
+    private const string CommandAlias = "/sev";
+    private const string UpstreamCommandName = "/anomech";
+    private const string UpstreamCommandAlias = "/ano";
     private bool commandsRegistered;
 
     internal static Configuration Config { get; private set; } = null!;
@@ -97,11 +99,19 @@ public sealed class Plugin : IDalamudPlugin
 
             CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
             {
-                HelpMessage = "Open AnoMech. Subcommands: config, mp, start, reset, leave"
+                HelpMessage = "Open SevMech. Subcommands: config, mp, start, reset, leave"
             });
             CommandManager.AddHandler(CommandAlias, new CommandInfo(OnCommand)
             {
-                HelpMessage = "Alias for /anomech"
+                HelpMessage = "Alias for /sevmech"
+            });
+            CommandManager.AddHandler(UpstreamCommandName, new CommandInfo(OnCommand)
+            {
+                HelpMessage = "Alias for /sevmech (kept from AnoMech)"
+            });
+            CommandManager.AddHandler(UpstreamCommandAlias, new CommandInfo(OnCommand)
+            {
+                HelpMessage = "Alias for /sevmech (kept from AnoMech)"
             });
             commandsRegistered = true;
 
@@ -194,6 +204,8 @@ public sealed class Plugin : IDalamudPlugin
         {
             CommandManager.RemoveHandler(CommandName);
             CommandManager.RemoveHandler(CommandAlias);
+            CommandManager.RemoveHandler(UpstreamCommandName);
+            CommandManager.RemoveHandler(UpstreamCommandAlias);
         }
     }
 

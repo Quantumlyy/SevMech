@@ -6,7 +6,7 @@ using AnoMech.Multiplayer;
 
 namespace AnoMech;
 
-// The user's Start / Reset / Leave (main window, /ano), routed to the local Game or, for a
+// The user's Start / Reset / Leave (main window, /sev), routed to the local Game or, for a
 // multiplayer peer, to the host.
 internal sealed class RunController
 {
