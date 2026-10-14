@@ -1,4 +1,4 @@
-# ![SevMech](images/icon.png) SevMech
+# <img src="images/icon-large.png" width="64" alt="SevMech"> SevMech
 
 *Severe Mechanics: an FFXIV mechanics simulator*
 
