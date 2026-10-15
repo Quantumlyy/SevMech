@@ -1,10 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Group;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using FFXIVClientStructs.FFXIV.Client.UI.Arrays;
+using FFXIVClientStructs.FFXIV.Component.GUI;
 using GroupPartyMember = FFXIVClientStructs.FFXIV.Client.Game.Group.PartyMember;
 using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.Native.Implementations.Interop;
@@ -25,10 +30,32 @@ internal sealed unsafe class PartyHud : IPartyHud
     private const ulong DoppelContentIdTag = 0xFF00000000000000UL;
     private const long SimPartyId = 0xFFFFFFFF;
 
+    private const int MaxSlots = 8;
+    private const string AddonName = "_PartyList";
+    // PartyListStringArray: 6 header strings, then 23 per member, the slot number glyph first.
+    private const int MemberStringsStart = 6;
+    private const int StringsPerMember = 23;
+
     private readonly List<(uint EntityId, byte ClassJob, byte Level)> sentRoster = new();
     private readonly List<(uint EntityId, byte ClassJob, byte Level)> roster = new();
     private bool ownsRoster;
     private UpdatePartyPacket realParty;
+
+    // Top to bottom; null leaves the rows where the game puts them.
+    private IReadOnlyList<PartyRole>? displayOrder;
+    private readonly Dictionary<uint, PartyRole> roleByEntity = new();
+
+    public PartyHud()
+    {
+        Plugin.AddonLifecycle.RegisterListener(AddonEvent.PreRequestedUpdate, AddonName, OnPreRequestedUpdate);
+    }
+
+    public void Dispose()
+    {
+        Plugin.AddonLifecycle.UnregisterListener(AddonEvent.PreRequestedUpdate, AddonName, OnPreRequestedUpdate);
+    }
+
+    public void SetDisplayOrder(IReadOnlyList<PartyRole>? order) => displayOrder = order;
 
     public void Refresh(SimParty party)
     {
@@ -36,6 +63,13 @@ internal sealed unsafe class PartyHud : IPartyHud
 
         var gm = GroupManager.Instance();
         if (gm == null) return;
+
+        roleByEntity.Clear();
+        foreach (var (role, member) in party.FilledSlots())
+        {
+            var bc = member.BattleCharaPtr();
+            if (bc != null) roleByEntity[((GameObject*)bc)->EntityId] = role;
+        }
 
         var members = OrderedMembers(party);
         roster.Clear();
@@ -60,6 +94,8 @@ internal sealed unsafe class PartyHud : IPartyHud
 
     public void Clear()
     {
+        displayOrder = null;
+        roleByEntity.Clear();
         if (!ownsRoster) return;
         ownsRoster = false;
         sentRoster.Clear();
@@ -171,5 +207,81 @@ internal sealed unsafe class PartyHud : IPartyHud
             statuses[i].RemainingTime = s.RemainingTime;
             statuses[i].SourceEntityId = s.SourceObject.ObjectId;
         }
+    }
+
+    // Each member's block keeps its place in the arrays and the addon draws it at DisplayRow,
+    // which is how the game lays out a dragged party list. Moving DisplayRow (and the slot
+    // number with it) reorders the rows; clicks stay on the block, so targeting is unaffected.
+    private void OnPreRequestedUpdate(AddonEvent type, AddonArgs args)
+    {
+        if (displayOrder is not { } order || roleByEntity.Count == 0) return;
+        if (args is not AddonRequestedUpdateArgs reqArgs) return;
+        var numArrays = (NumberArrayData**)reqArgs.NumberArrayData;
+        var strArrays = (StringArrayData**)reqArgs.StringArrayData;
+        if (numArrays == null || strArrays == null) return;
+        var numArr = numArrays[(int)NumberArrayType.PartyList];
+        var strArr = strArrays[(int)StringArrayType.PartyList];
+        if (numArr == null || strArr == null) return;
+        var list = (PartyListNumberArray*)numArr->IntArray;
+        var count = Math.Clamp(list->PartyListCount, 0, MaxSlots);
+        if (count < 2) return;
+
+        // A row the order doesn't name keeps its relative place below the ordered ones.
+        Span<int> rank = stackalloc int[MaxSlots];
+        Span<int> oldRow = stackalloc int[MaxSlots];
+        for (var block = 0; block < count; block++)
+        {
+            ref var member = ref list->PartyMembers[block];
+            oldRow[block] = member.DisplayRow;
+            var index = roleByEntity.TryGetValue(member.EntityId, out var role) ? IndexOf(order, role) : -1;
+            rank[block] = index >= 0 ? index : MaxSlots + member.DisplayRow;
+        }
+
+        Span<int> rows = stackalloc int[MaxSlots];
+        oldRow[..count].CopyTo(rows);
+        rows[..count].Sort();
+        Span<int> byRank = stackalloc int[MaxSlots];
+        for (var i = 0; i < count; i++) byRank[i] = i;
+        for (var i = 1; i < count; i++)
+            for (var j = i; j > 0 && rank[byRank[j]] < rank[byRank[j - 1]]; j--)
+                (byRank[j], byRank[j - 1]) = (byRank[j - 1], byRank[j]);
+
+        var glyphs = new byte[MaxSlots][];
+        for (var block = 0; block < count; block++)
+            glyphs[block] = ReadString(strArr, GlyphIndex(block));
+        for (var k = 0; k < count; k++)
+        {
+            var block = byRank[k];
+            var newRow = rows[k];
+            if (newRow == oldRow[block]) continue;
+            list->PartyMembers[block].DisplayRow = newRow;
+            var source = oldRow[..count].IndexOf(newRow);
+            if (source >= 0) WriteString(strArr, GlyphIndex(block), glyphs[source]);
+        }
+    }
+
+    private static int IndexOf(IReadOnlyList<PartyRole> order, PartyRole role)
+    {
+        for (var i = 0; i < order.Count; i++)
+            if (order[i] == role) return i;
+        return -1;
+    }
+
+    private static int GlyphIndex(int block) => MemberStringsStart + block * StringsPerMember;
+
+    private static byte[] ReadString(StringArrayData* strArr, int index)
+    {
+        byte* text = strArr->StringArray[index];
+        if (text == null) return [0];
+        var length = 0;
+        while (text[length] != 0) length++;
+        var bytes = new byte[length + 1];
+        new ReadOnlySpan<byte>(text, length).CopyTo(bytes);
+        return bytes;
+    }
+
+    private static void WriteString(StringArrayData* strArr, int index, byte[] bytes)
+    {
+        fixed (byte* text = bytes) strArr->SetValue(index, text, managed: true);
     }
 }

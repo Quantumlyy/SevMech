@@ -192,6 +192,9 @@ public sealed class SimWorld : ISimObject, IDisposable
     public void PlaceGroundVfx(uint vfxId, Vector3 position)
         => Party.Player?.ActorControl.PlaceGroundVfx(vfxId, Coordinates.ToGlobal(position));
 
+    // Each client's own: a peer applies its own order to its own party list.
+    public void SetPartyListOrder(IReadOnlyList<PartyRole>? order) => Natives.PartyHud.SetDisplayOrder(order);
+
     // Seats the run's roster, spawning only the seats that changed since the last run. Must be
     // called after ScenarioOrigin is set and the run reseeded: the spawn ring draws from it.
     public void ApplyParty(IReadOnlyList<PartySlot?> roster)

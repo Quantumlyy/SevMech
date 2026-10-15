@@ -45,6 +45,7 @@ public static class Natives
     public static void Dispose()
     {
         Bgm?.Dispose();
+        PartyHud?.Dispose();
         MapEffects?.Dispose();
         Zone?.Dispose();
         // Before PlayerInput: it unsubscribes from the hooks' event.
