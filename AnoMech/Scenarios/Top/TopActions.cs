@@ -270,6 +270,61 @@ public static class TopActions
     // -- P1 Program Loop --
 
     // -- P3 Intermission --
+    // P2's enrage, this far into its bar by the scenario's first frames.
+    public static readonly EnemyAction LaserShower = new(ActionId.LaserShower)
+    {
+        Cast = new() { ElapsedAtStart = 54.94f },
+    };
+
+    public static readonly EnemyAction ColossalBlow = new(ActionId.ColossalBlow)
+    {
+        Cast = new() { AnimationLock = 2.1f },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
+
+    public static readonly EnemyAction WaveRepeater1 = new(ActionId.WaveRepeater1)
+    {
+        Cast = new() { AnimationLock = 2.1f },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
+
+    public static readonly EnemyAction WaveRepeater2 = WaveRepeaterRing(ActionId.WaveRepeater2, 6f);
+    public static readonly EnemyAction WaveRepeater3 = WaveRepeaterRing(ActionId.WaveRepeater3, 12f);
+    public static readonly EnemyAction WaveRepeater4 = WaveRepeaterRing(ActionId.WaveRepeater4, 18f);
+
+    private static EnemyAction WaveRepeaterRing(uint actionId, float inner) => new(actionId)
+    {
+        Cast = new() { AnimationLock = 2.1f },
+        Area = new() { Size = inner },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
+
+    public static readonly EnemyAction SniperCannon = new(ActionId.SniperCannon)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects =
+        [
+            OnTarget(Damage(MagicVulns)),
+            OnOthers(Damage(Lethal)),
+            ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f),
+        ],
+    };
+
+    public static readonly EnemyAction HighPoweredSniperCannon = new(ActionId.HighPoweredSniperCannon)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects = [Damage(MagicVulns, split: Stack(2)), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+    };
+
+    // A dead holder's debuff going off on someone at random. UNVERIFIED: no pull lost a holder early.
+    public static readonly EnemyAction SniperCannonJump = SniperCannonJumpOf(ActionId.SniperCannon);
+    public static readonly EnemyAction HighPoweredSniperCannonJump = SniperCannonJumpOf(ActionId.HighPoweredSniperCannon);
+
+    private static EnemyAction SniperCannonJumpOf(uint actionId) => new(actionId)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
 
     // -- P3 Hello World --
 
