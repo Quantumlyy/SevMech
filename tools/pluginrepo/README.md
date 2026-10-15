@@ -13,6 +13,6 @@ https://raw.githubusercontent.com/Quantumlyy/MyDalamudPlugins/main/pluginmaster.
 
 ## Plugins
 
-* [SevMech](https://github.com/refrakts/SevMech) - Severe Mechanics: an FFXIV mechanics simulator forked from
+* [SevMech](https://github.com/Quantumlyy/SevMech) - Severe Mechanics: an FFXIV mechanics simulator forked from
   [AnoMech](https://github.com/anomek/AnoMech). Solo practice for ultimates from the safety of your inn.
   It keeps AnoMech's internal name, so only one of the two can be installed at a time.
