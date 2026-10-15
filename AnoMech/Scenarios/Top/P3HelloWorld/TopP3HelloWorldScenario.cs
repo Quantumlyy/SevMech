@@ -50,6 +50,7 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
     // The server first measures a new tether this long after it goes live, so a pair already in
     // place breaks it no sooner.
     private const float TetherFirstCheck = 0.13f;
+    private const float PatchResolveDelay = 10f;
 
     private SimWorld world = null!;
     private SimParty party = null!;
@@ -120,26 +121,22 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
         world.Events.Add(22.16f, () => CastPatch(0));
         world.Events.Add(30.99f, () => ActivateTethers(0));
         world.Events.Add(31.97f, () => ShowPrepTethers(1));
-        world.Events.Add(32.16f, () => ResolvePatch(0));
         world.Events.Add(34.95f, ExpireLatentDefects);
         world.Events.Add(40.89f, CheckTethersExpired);
 
         world.Events.Add(43.21f, () => CastPatch(1));
         world.Events.Add(52.00f, () => ActivateTethers(1));
         world.Events.Add(52.98f, () => ShowPrepTethers(2));
-        world.Events.Add(53.21f, () => ResolvePatch(1));
         world.Events.Add(61.90f, CheckTethersExpired);
 
         world.Events.Add(64.26f, () => CastPatch(2));
         world.Events.Add(73.00f, () => ActivateTethers(2));
         world.Events.Add(73.98f, () => ShowPrepTethers(3));
-        world.Events.Add(74.26f, () => ResolvePatch(2));
         world.Events.Add(76.95f, ExpireLatentSynchronizationBugs);
         world.Events.Add(82.90f, CheckTethersExpired);
 
         world.Events.Add(85.30f, () => CastPatch(3));
         world.Events.Add(93.99f, () => ActivateTethers(3));
-        world.Events.Add(95.30f, () => ResolvePatch(3));
         world.Events.Add(103.89f, CheckTethersExpired);
 
         world.Events.Add(108.45f, CastCriticalError);
@@ -241,7 +238,8 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
     {
         if (loopWipe is not { } pending || world.Events.Elapsed <= pending.At) return;
         loopWipe = null;
-        Wipe(pending.ActionId, pending.Reason);
+        if (!party.IsAlive) wiped = true;
+        else Wipe(pending.ActionId, pending.Reason);
     }
 
     // Everyone must share a stack before Latent Synchronization Bug runs out; the first Christmas
@@ -305,7 +303,9 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
         if (remotes.Length == 2) prepTethers.Add(world.Tether(remotes[0], remotes[1], TetherId.HWPrepRemote));
     }
 
-    // The towers' bars run beside Omega's; each tower's hit lands on whoever stands in it.
+    // The towers' bars run beside Omega's; each tower's hit lands on whoever stands in it. The
+    // patch resolves from the same moment as the towers' casts, so it reads their hits whatever
+    // the frame length.
     private void CastPatch(int patch)
     {
         FaceMainTank();
@@ -316,6 +316,7 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
             var tower = new Placement(towers.Position(i), 0f).Face(Vector3.Zero);
             towerCasts[i] = towerHelpers?.At(i, tower)?.Cast(towers.ColorOf(i).Tower);
         }
+        world.Events.Add(PatchResolveDelay, () => ResolvePatch(patch));
     }
 
     private void ActivateTethers(int patch)
@@ -552,10 +553,13 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
         if (tether.Resolved) return;
         tether.Resolved = true;
         tether.Despawn();
+        if (wiped) return;
         // Its hit is the wipe; the loop's own must not get in first.
         wiped = true;
-        world.Announce($"Hello World wipe: {(tether.A is { } a ? Who(a) : "?")} and {(tether.B is { } b ? Who(b) : "?")}'s {TetherName(tether)} didn't break in time.");
-        burstHelpers?.Next(tether.A?.Placement() ?? default)?.Cast(Actions.HwTetherFail);
+        var reason = $"Hello World wipe: {(tether.A is { } a ? Who(a) : "?")} and {(tether.B is { } b ? Who(b) : "?")}'s {TetherName(tether)} didn't break in time";
+        world.Announce($"{reason}.");
+        if (burstHelpers?.Next(tether.A?.Placement() ?? default)?.Cast(Actions.HwTetherFail) is null)
+            party.WipeAllPlayers(ActionId.HwTetherFail, reason);
     }
 
     private string TetherName(SimTether tether) => localTethers.Contains(tether) ? "Christmas tether" : remoteTethers.Contains(tether) ? "blue tether" : "tether";
@@ -576,7 +580,8 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
         foreach (var member in party.ActiveMembers().Where(member => member.HasStatus(statusId)).ToList())
         {
             member.RemoveStatus(statusId);
-            burstHelpers?.Next(member.Placement())?.Cast(expired, member);
+            if (burstHelpers?.Next(member.Placement())?.Cast(expired, member) is null)
+                Wipe(expired.ActionId, $"{Who(member)}'s {Natives.Data.ActionName(expired.ActionId)} ran out");
         }
     }
 

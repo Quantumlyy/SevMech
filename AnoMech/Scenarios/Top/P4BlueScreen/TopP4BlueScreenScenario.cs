@@ -46,6 +46,8 @@ public sealed class TopP4BlueScreenScenario : IMultiplayerReplayable, IPartyLimi
     {
         world = worldParam;
         party = worldParam.Party;
+        party.LimitBreak.Landed -= OnLimitBreakLanded;
+        party.LimitBreak.Landed += OnLimitBreakLanded;
         state = new TopP4BlueScreenState(world.Rng, settingsWindow.Overrides);
         LastState = state;
         boss = null;
@@ -123,8 +125,6 @@ public sealed class TopP4BlueScreenScenario : IMultiplayerReplayable, IPartyLimi
         Natives.TimelinePreload.Preload(GimmickTimelines, "TopP4BlueScreen");
         instanceWorld.Party.LimitBreak.Set(3f);
         instanceWorld.Events.Add(64.33f, () => Natives.Bgm.Silence());
-        instanceWorld.Party.LimitBreak.Landed -= OnLimitBreakLanded;
-        instanceWorld.Party.LimitBreak.Landed += OnLimitBreakLanded;
     }
 
     // The gauge follows the event clock, which the debug speed buttons scale.
@@ -256,11 +256,10 @@ public sealed class TopP4BlueScreenScenario : IMultiplayerReplayable, IPartyLimi
         _ => NotMelee,
     };
 
-    // Host only: a peer's gauge is the host's (IPartyLimitBreakScenario), and its own limit
-    // break reaches the host as a report.
+    // A peer's limit break reaches the host as a report (IPartyLimitBreakScenario).
     private void OnLimitBreakLanded(uint actionId, LimitBreakAim aim)
     {
-        if (Plugin.Game is not { } game || game.ActiveScenario != this || game.Mode == SessionMode.Peer) return;
+        if (Plugin.Game is not { } game || game.ActiveScenario != this) return;
         SpendGauge(LimitBreak.LevelOf(actionId));
     }
 

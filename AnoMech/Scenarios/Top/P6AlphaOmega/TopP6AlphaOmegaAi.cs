@@ -609,7 +609,7 @@ public sealed class TopP6AlphaOmegaAi : IScenarioAi<TopP6AlphaOmegaState>
     private float Stagger(float spread) => noise.NextFloat(0f, spread);
 
     private bool Drives(PartyRole role)
-        => world.Party.Get(role) is { } member && (member is SimPartyNpc || (ReferenceEquals(member, world.Party.Player) && DebugBotControl.Enabled));
+        => world.Party.Get(role) is { } member && world.Party.IsBotDriven(member);
 
     private Vector2 Live(PartyRole role)
         => world.Party.Get(role) is { } member ? new Vector2(member.Position.X, member.Position.Z) : Vector2.Zero;

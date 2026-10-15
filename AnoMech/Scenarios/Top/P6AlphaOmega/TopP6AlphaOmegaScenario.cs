@@ -91,6 +91,8 @@ public sealed class TopP6AlphaOmegaScenario : IMultiplayerReplayable, IPartyLimi
     {
         world = worldParam;
         party = worldParam.Party;
+        party.LimitBreak.Landed -= OnLocalLimitBreak;
+        party.LimitBreak.Landed += OnLocalLimitBreak;
         state = new TopP6AlphaOmegaState(world.Rng, party, settingsWindow.Overrides);
         LastState = state;
         practice = TopP6AlphaOmegaPractice.Of(state.Practice);
@@ -237,8 +239,6 @@ public sealed class TopP6AlphaOmegaScenario : IMultiplayerReplayable, IPartyLimi
     {
         Natives.TimelinePreload.Preload(GimmickTimelines, "TopP6AlphaOmega");
         instanceWorld.Party.LimitBreak.Set(3f);
-        instanceWorld.Party.LimitBreak.Landed -= OnLocalLimitBreak;
-        instanceWorld.Party.LimitBreak.Landed += OnLocalLimitBreak;
         if (Practiced.Practice > P6Practice.CosmoMeteor)
             instanceWorld.Events.Add(0f, () => instanceWorld.Map.AddEffect(0x00010001, TopZone.CosmoMeteorArenaSlot, broadcast: false));
     }
@@ -792,11 +792,10 @@ public sealed class TopP6AlphaOmegaScenario : IMultiplayerReplayable, IPartyLimi
         }
     }
 
-    // Host only: a peer's gauge is the host's (IPartyLimitBreakScenario), and its own limit
-    // break reaches the host as a report.
+    // A peer's limit break reaches the host as a report (IPartyLimitBreakScenario).
     private void OnLocalLimitBreak(uint actionId, LimitBreakAim aim)
     {
-        if (Plugin.Game is not { } game || game.ActiveScenario != this || game.Mode == SessionMode.Peer) return;
+        if (Plugin.Game is not { } game || game.ActiveScenario != this) return;
         HumanLimitBreakLanded(party.PlayerRole, actionId, aim);
     }
 
