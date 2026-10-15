@@ -22,6 +22,7 @@ internal sealed class EnemyActionHandler(SimCharacter caster, SimCast cast, SimW
     };
 
     private EnemyActionCast? casting;
+    private EnemyActionCast? holdingForRelease;
 
     public EnemyActionCast Start(EnemyAction action, CastTarget at, byte animationVariation)
     {
@@ -50,6 +51,7 @@ internal sealed class EnemyActionHandler(SimCharacter caster, SimCast cast, SimW
             cast.NativeCast(id, ActionType.Action, action.Cast.OmenDelay, castTime, interruptible: false,
                 rotation: CastRotation(action, target, location), position: location, targetId: castTarget);
             if (elapsed > 0f) cast.SkipAhead(elapsed);
+            holdingForRelease = handle;
             cast.ReleasePending = true;
         }
 
@@ -66,7 +68,11 @@ internal sealed class EnemyActionHandler(SimCharacter caster, SimCast cast, SimW
         {
             if (handle.IsCancelled) return;
             if (casting == handle) casting = null;
-            cast.ReleasePending = false;
+            if (holdingForRelease == handle)
+            {
+                holdingForRelease = null;
+                cast.ReleasePending = false;
+            }
             Release(action, target, location, castTarget, animationVariation, delivery);
         });
         return handle;
@@ -76,6 +82,7 @@ internal sealed class EnemyActionHandler(SimCharacter caster, SimCast cast, SimW
     {
         if (casting is not { } handle) return;
         casting = null;
+        holdingForRelease = null;
         handle.Cancelled();
         cast.Cancel(reason);
     }

@@ -187,11 +187,10 @@ public sealed unsafe class LocalPlayerInputHooks : ILocalPlayerInput
         ScanAndLogActiveStatuses();
     }
 
-    // Null outside a scenario too: there the gauge is the player's own and none of this applies.
+    // Outside a scenario the gauge is the player's own; the consumers gate on the run, not this.
     private int? LimitBreakLevel(ActionType actionType, uint actionId)
     {
         if (actionType != ActionType.Action) return null;
-        if (Plugin.Game is not { } game || !game.World.Map.IsInInstance) return null;
         if (Plugin.ObjectTable.LocalPlayer is not { } local) return null;
         var lb = NativeLimitBreakController.Instance();
         if (lb == null) return null;

@@ -53,6 +53,7 @@ internal sealed class LimitBreakHandler : IUserActionHandler
     // the module on, so it lands here when off; a peer's host learns of it from the report.
     internal static void ResolveOwn(SimWorld world, SimPlayer player, uint actionId, ulong targetId, LimitBreakPress press)
     {
+        if (!player.IsAlive()) return;
         if (!Natives.UserActions.Enabled) JobActions.ApplyEffects(player, actionId, targetId);
         var aim = AimOf(world, player, press);
         Resolve(world.Party, player, actionId, aim);

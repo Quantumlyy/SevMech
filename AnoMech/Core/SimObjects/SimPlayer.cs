@@ -81,6 +81,7 @@ public sealed class SimPlayer : SimCharacter, ISimPartyMember
 
     public void OnKilled(bool byEnvironment)
     {
+        if (Proxy.IsCasting) ActorControl.CancelCast(Proxy.CastActionId, CastCancelReason.Interrupted);
         GoDown(byEnvironment);
     }
 

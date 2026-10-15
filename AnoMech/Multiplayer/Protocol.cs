@@ -43,6 +43,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(P2LockonsUpdateMessage), "p2LockonsUpdate")]
 [JsonDerivedType(typeof(MapEffectMessage), "mapEffect")]
 [JsonDerivedType(typeof(MapDirectorUpdateMessage), "mapDirectorUpdate")]
+[JsonDerivedType(typeof(MapBattleTalkMessage), "mapBattleTalk")]
 [JsonDerivedType(typeof(SetWeatherMessage), "setWeather")]
 [JsonDerivedType(typeof(AnnouncementMessage), "announcement")]
 [JsonDerivedType(typeof(P4AiReplayStateMessage), "p4AiReplayState")]
@@ -264,6 +265,7 @@ public sealed record MapDirectorUpdateMessage(
 
 // Replay of world.SetWeather; scenarios use it mid-fight for lighting cues.
 public sealed record SetWeatherMessage(byte WeatherId, float Transition) : MpMessage, IHostOnlyMessage;
+public sealed record MapBattleTalkMessage(uint SpeakerNameId, uint TextId, uint DurationMs) : MpMessage, IHostOnlyMessage;
 
 // Replay of SimWorld.Announce: a scenario's own mid-run message to the party.
 public sealed record AnnouncementMessage(string Text) : MpMessage, IHostOnlyMessage;

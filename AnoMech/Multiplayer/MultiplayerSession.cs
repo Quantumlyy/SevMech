@@ -23,7 +23,7 @@ public sealed class MultiplayerSession
     public int SelectedAi { get; set; }
     public int SelectedWaymark { get; set; }
 
-    // Display lines from ScenarioSettingsSummary.
+    // The host's IScenario.SettingsSummary lines, shown read-only to peers.
     public List<string> ScenarioSettings { get; set; } = new();
     private const int MaxScenarioSettingLines = 64;
 

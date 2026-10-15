@@ -190,7 +190,22 @@ public class SimNpc : SimCharacter
     internal override void ClearRunState()
     {
         AbortPlayedAction(CastCancelReason.Cancelled);
+        ForgetPlayedAction();
         base.ClearRunState();
+    }
+
+    // The party outlives a run, and a peer replays whatever seq the first snapshot of the next
+    // one carries.
+    private void ForgetPlayedAction()
+    {
+        PlayedActionId = 0;
+        PlayedActionAnimationLock = 0f;
+        PlayedActionCastSeconds = 0f;
+        PlayedActionEffectDelay = 0f;
+        PlayedActionTarget = null;
+        PlayedActionLocation = null;
+        PlayedActionHoldsStill = false;
+        PlayedActionSeq = 0;
     }
 
     public override void Despawn()
@@ -199,6 +214,7 @@ public class SimNpc : SimCharacter
         PacketSpawnPending = false;
         pendingActionEffect = null;
         heldStillFor = 0f;
+        ForgetPlayedAction();
         Casting.Despawn();
         base.Despawn();
         proxy.Despawn();

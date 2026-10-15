@@ -434,6 +434,16 @@ public sealed partial class MultiplayerManager
                     directorUpdate.Category, directorUpdate.Arg1, directorUpdate.Arg2,
                     directorUpdate.Arg3, directorUpdate.Arg4, directorUpdate.Arg5, directorUpdate.Arg6);
                 break;
+            case MapBattleTalkMessage battleTalk when PeerInRun:
+                if (!SimAssets.Allow(SimAssetKind.BattleTalk, battleTalk.TextId, "BattleTalk")) break;
+                if (Natives.Data.BNpcName(battleTalk.SpeakerNameId) == null)
+                {
+                    DiagnosticLog.Warn($"[Multiplayer] Dropped BattleTalk speaker={battleTalk.SpeakerNameId} -- no such BNpcName row.");
+                    break;
+                }
+                Plugin.Game.World.Map.BattleTalk(battleTalk.SpeakerNameId, battleTalk.TextId,
+                    (uint)NetGuard.Clamp(battleTalk.DurationMs, 0f, 30_000f));
+                break;
             case SetWeatherMessage weather when PeerInRun:
                 if (!WeatherSheet.HasRow(weather.WeatherId))
                 {
