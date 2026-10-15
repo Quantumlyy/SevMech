@@ -27,7 +27,11 @@ public sealed class TopP1ProgramLoopScenario : IMultiplayerReplayable
     public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
     private readonly TopP1ProgramLoopSettingsWindow settingsWindow = new();
 
-    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP1ProgramLoopAi(automarkers: false), new TopP1ProgramLoopAi(automarkers: true)];
+    public IReadOnlyList<IScenarioAi> AiStrats =>
+    [
+        new TopP1ProgramLoopAi(lpdu: false, automarkers: false), new TopP1ProgramLoopAi(lpdu: false, automarkers: true),
+        new TopP1ProgramLoopAi(lpdu: true, automarkers: false), new TopP1ProgramLoopAi(lpdu: true, automarkers: true),
+    ];
 
     private static readonly (ushort Id, string Key)[] GimmickTimelines =
     [

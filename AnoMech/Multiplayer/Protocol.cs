@@ -55,6 +55,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(UltimatePredationAiReplayStateMessage), "ultimatePredationAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaAiReplayStateMessage), "topP5DeltaAiReplayState")]
 [JsonDerivedType(typeof(TopP1ProgramLoopAiReplayStateMessage), "topP1ProgramLoopAiReplayState")]
+[JsonDerivedType(typeof(TopP1PantokratorAiReplayStateMessage), "topP1PantokratorAiReplayState")]
 [JsonDerivedType(typeof(TopP3MonitorsAiReplayStateMessage), "topP3MonitorsAiReplayState")]
 [JsonDerivedType(typeof(TopP3IntermissionAiReplayStateMessage), "topP3IntermissionAiReplayState")]
 [JsonDerivedType(typeof(TopP3HelloWorldAiReplayStateMessage), "topP3HelloWorldAiReplayState")]
@@ -360,6 +361,11 @@ public sealed record TopP5DeltaBeyondDefenseUpdateMessage(PartyRole BeyondDefens
 // the first tether holders.
 public sealed record TopP1ProgramLoopAiReplayStateMessage(
     PartyRole[] InLine, int[] TowerCardinals, int[] TowerShifts, PartyRole[] FirstTetherHolders) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset TopP1PantokratorAi reads: the In Line order, the first cones' bearing step and turn,
+// and the first laser set.
+public sealed record TopP1PantokratorAiReplayStateMessage(
+    PartyRole[] InLine, int FlameStart, bool Clockwise, PartyRole[] FirstLasers) : MpMessage, IScenarioReplayStateMessage;
 
 public sealed record TopP3MonitorsAiReplayStateMessage(bool BossIsLeft, PartyRole[] Monitors, bool[] MonitorsAreLeft) : MpMessage, IScenarioReplayStateMessage;
 

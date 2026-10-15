@@ -308,6 +308,59 @@ public static class TopActions
         ],
     };
 
+    // -- P1 Pantokrator --
+    public static readonly EnemyAction FlameThrowerFirst = FlameThrower(ActionId.FlameThrowerFirst);
+    public static readonly EnemyAction FlameThrowerRest = FlameThrower(ActionId.FlameThrowerRest);
+
+    private static EnemyAction FlameThrower(uint actionId) => new(actionId)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
+
+    public static readonly EnemyAction BallisticImpact = new(ActionId.BallisticImpact)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
+
+    // The missile's blast: its target lives, left with the vuln that makes a stack on top of it
+    // lethal; anyone else it reaches dies.
+    public static readonly EnemyAction GuidedMissileKyrios = new(ActionId.GuidedMissileKyrios)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Effects =
+        [
+            OnTarget(Damage(MagicVulns)),
+            OnTarget(ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)),
+            OnOthers(new LethalEffect("another player's missile")),
+        ],
+    };
+
+    public static readonly EnemyAction CondensedWaveCannonKyrios = new(ActionId.CondensedWaveCannonKyrios)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Effects = [Damage(MagicVulns, split: Stack(3))],
+    };
+
+    // UNVERIFIED: the cone's width was never measured; 120 degrees follows ffxiv_bossmod.
+    public static readonly EnemyAction DiffuseWaveCannonKyrios = new(ActionId.DiffuseWaveCannonKyrios)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Area = new() { Size = MathF.PI / 3f },
+        Effects = [OnTarget(Damage(MagicVulns, TankBuster)), OnOthers(Damage(MagicVulns, Lethal))],
+    };
+
+    public static readonly EnemyAction WaveCannonKyrios = new(ActionId.WaveCannonKyrios)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Effects = [OnTarget(Damage(MagicVulns)), OnOthers(new LethalEffect("another player's laser"))],
+    };
+
     // Damage(Lethal) with the explanation the death needs.
     private sealed class LethalEffect(string explanation) : IEnemyActionEffect
     {

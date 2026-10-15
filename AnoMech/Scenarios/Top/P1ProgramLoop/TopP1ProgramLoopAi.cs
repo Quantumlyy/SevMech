@@ -11,9 +11,9 @@ using static AnoMech.Scenarios.Top.TopConstants;
 
 namespace AnoMech.Scenarios.Top.P1ProgramLoop;
 
-public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1ProgramLoopState>
+public sealed class TopP1ProgramLoopAi(bool lpdu, bool automarkers) : IScenarioAi<TopP1ProgramLoopState>
 {
-    public string Name => automarkers ? "NA (automarkers)" : "NA";
+    public string Name => (lpdu ? "LPDU" : "NA") + (automarkers ? " (automarkers)" : "");
 
     private const float GrabRadius = 3f;
     private const float HoldRadius = 15f;
@@ -59,11 +59,17 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
     private static readonly float[] AsideRings = [0f, 2f, 4f, 6f, 8f];
     private static readonly float[] DodgeRings = [0.5f, 1f, 1.5f, 2f, 2.5f];
     private const int StepBearings = 16;
+    private static readonly int[] Groups = [0, 1];
+    private static readonly PartyRole[] LpduPriority =
+    [
+        PartyRole.MeleeDpsA, PartyRole.MeleeDpsB, PartyRole.MainTank, PartyRole.OffTank,
+        PartyRole.PhysRangedDps, PartyRole.CasterDps, PartyRole.RegenHealer, PartyRole.ShieldHealer,
+    ];
 
     private TopP1ProgramLoopState state = null!;
     private SimWorld world = null!;
     private AiManager ai = null!;
-    private Dictionary<PartyRole, bool> inLeftGroup = null!;
+    private Dictionary<PartyRole, int> groupOf = null!;
     private readonly Dictionary<PartyRole, Vector2> planned = new();
     private readonly Dictionary<PartyRole, Vector2> holdSpots = new();
     private readonly Dictionary<PartyRole, int> orders = new();
@@ -74,7 +80,7 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
         state = s;
         world = simWorld;
         ai = new AiManager(world);
-        inLeftGroup = TopLightParties.SplitByInLine(state.WithNumber);
+        groupOf = lpdu ? SplitByGlobalPriority() : SplitByLightParty();
         planned.Clear();
         holdSpots.Clear();
         orders.Clear();
@@ -103,6 +109,21 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
 
     private static IAiMove StackSouth() => AiMove.All(SouthStack);
 
+    private Dictionary<PartyRole, int> SplitByLightParty()
+        => TopLightParties.SplitByInLine(state.WithNumber).ToDictionary(kv => kv.Key, kv => kv.Value ? 1 : 0);
+
+    private Dictionary<PartyRole, int> SplitByGlobalPriority()
+    {
+        var group = new Dictionary<PartyRole, int>();
+        for (var number = 1; number <= 4; number++)
+        {
+            var pair = state.WithNumber(number).OrderBy(role => Array.IndexOf(LpduPriority, role)).ToList();
+            group[pair[0]] = 0;
+            group[pair[1]] = 1;
+        }
+        return group;
+    }
+
     private void PlanColumnBehindThrees(float time)
     {
         var column = state.WithNumber(3).Concat(PerRole.All.Where(role => state.NumberOf(role) != 3)).ToList();
@@ -117,21 +138,21 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
     private void PlanFirstSet(float carryTime, float walkOutTime)
     {
         var towers = state.Towers[0];
-        foreach (var left in new[] { true, false })
+        foreach (var group in Groups)
         {
-            var holder = Member(3, left);
-            var cardinal = DropCardinal(towers, left);
+            var holder = Member(3, group);
+            var cardinal = DropCardinal(towers, group);
             TakeYourTether(TethersAppear, holder, 3, carryTime, cardinal, walkOutTime, viaSouth: true, BlasterTimes[0] - StopTakingBeforeBlaster);
         }
-        foreach (var left in new[] { true, false })
+        foreach (var group in Groups)
         {
-            WalkAround(carryTime, Member(1, left), SoakSpot(towers, left), TowerTimes[0] - SettleBeforeTower, mustArrive: true, 0);
-            WalkAround(carryTime, Member(2, left), BesideTower(towers, TowerCardinal(towers, left), IdleOutset), BlasterTimes[0] - SettleBeforeBlaster,
+            WalkAround(carryTime, Member(1, group), SoakSpot(towers, group), TowerTimes[0] - SettleBeforeTower, mustArrive: true, 0);
+            WalkAround(carryTime, Member(2, group), BesideTower(towers, TowerCardinal(towers, group), IdleOutset), BlasterTimes[0] - SettleBeforeBlaster,
                 mustArrive: false, 0);
-            WalkAround(carryTime, Member(4, left), TakerWaitSpot(towers, left), BlasterTimes[0] - SettleBeforeBlaster, mustArrive: false, 0);
+            WalkAround(carryTime, Member(4, group), TakerWaitSpot(towers, group), BlasterTimes[0] - SettleBeforeBlaster, mustArrive: false, 0);
         }
-        foreach (var left in new[] { true, false })
-            planned[Member(3, left)] = holdSpots[Member(3, left)] = HoldSpot(DropCardinal(towers, left));
+        foreach (var group in Groups)
+            planned[Member(3, group)] = holdSpots[Member(3, group)] = HoldSpot(DropCardinal(towers, group));
     }
 
     private void PlanHandOver(int set, float blaster)
@@ -144,30 +165,30 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
         var lastHandOver = set == 2;
         var settle = BlasterTimes[set + 1] - SettleBeforeBlaster;
 
-        foreach (var left in new[] { true, false })
-            TakeYourTether(blaster, Member(newHolder, left), newHolder, blaster + CarryAfterBlaster, DropCardinal(next, left), blaster + WalkOutAfterBlaster,
+        foreach (var group in Groups)
+            TakeYourTether(blaster, Member(newHolder, group), newHolder, blaster + CarryAfterBlaster, DropCardinal(next, group), blaster + WalkOutAfterBlaster,
                 viaSouth: false, BlasterTimes[set + 1] - StopTakingBeforeBlaster);
 
-        var passedTowers = NearestTowers(next, Member(oldHolder, true), Member(oldHolder, false));
-        var soakedTowers = NearestTowers(next, Member(justSoaked, true), Member(justSoaked, false));
-        foreach (var left in new[] { true, false })
+        var passedTowers = NearestTowers(next, Member(oldHolder, 0), Member(oldHolder, 1));
+        var soakedTowers = NearestTowers(next, Member(justSoaked, 0), Member(justSoaked, 1));
+        foreach (var group in Groups)
         {
-            var passed = Member(oldHolder, left);
-            LeaveOnceTaken(blaster + CarryAfterBlaster, passed, BesideTower(next, left ? passedTowers.Left : passedTowers.Right, IdleOutset), settle, set + 1);
+            var passed = Member(oldHolder, group);
+            LeaveOnceTaken(blaster + CarryAfterBlaster, passed, BesideTower(next, passedTowers[group], IdleOutset), settle, set + 1);
 
-            WalkAround(blaster + LeaveForTowerAfterBlaster, Member(nextSoaker, left), SoakSpot(next, left), TowerTimes[set + 1] - SettleBeforeTower,
+            WalkAround(blaster + LeaveForTowerAfterBlaster, Member(nextSoaker, group), SoakSpot(next, group), TowerTimes[set + 1] - SettleBeforeTower,
                 mustArrive: true, set + 1);
 
             var soakedSpot = lastHandOver
-                ? BesideTower(next, left ? soakedTowers.Left : soakedTowers.Right, 0f)
-                : TakerWaitSpot(next, left);
-            WalkAround(blaster + LeaveTowerAfterBlaster, Member(justSoaked, left), soakedSpot, settle, mustArrive: false, set + 1);
+                ? BesideTower(next, soakedTowers[group], 0f)
+                : TakerWaitSpot(next, group);
+            WalkAround(blaster + LeaveTowerAfterBlaster, Member(justSoaked, group), soakedSpot, settle, mustArrive: false, set + 1);
         }
 
-        foreach (var left in new[] { true, false })
+        foreach (var group in Groups)
         {
-            var taker = Member(newHolder, left);
-            planned[taker] = holdSpots[taker] = HoldSpot(DropCardinal(next, left));
+            var taker = Member(newHolder, group);
+            planned[taker] = holdSpots[taker] = HoldSpot(DropCardinal(next, group));
         }
     }
 
@@ -206,7 +227,7 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
 
     private float Cost(PartyRole taker, (SimCharacter Member, PartyRole? Role) holder)
     {
-        var sameGroup = holder.Role is { } role && inLeftGroup.TryGetValue(role, out var left) && left == inLeftGroup[taker];
+        var sameGroup = holder.Role is { } role && groupOf.TryGetValue(role, out var group) && group == groupOf[taker];
         return (sameGroup ? 0f : 100f) + Vector2.Distance(Live(taker), GrabPoint(holder.Member.Position));
     }
 
@@ -421,7 +442,7 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
         var here = Live(soaker);
         var room = blasts.Count == 0 ? float.MaxValue : blasts.Min(blast => Vector2.Distance(here, blast)) - BlastReach - BlastMargin;
         if (room >= 0f) return;
-        var tower = TowerSpot(state.Towers[set], TowerCardinal(state.Towers[set], inLeftGroup[soaker]));
+        var tower = TowerSpot(state.Towers[set], TowerCardinal(state.Towers[set], groupOf[soaker]));
         Vector2? best = null;
         foreach (var ring in DodgeRings.Where(ring => ring <= TowerEdge))
             for (var k = 0; k < StepBearings; k++)
@@ -439,14 +460,14 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
     private void ClaimYourTower(int set)
         => At(TowerTimes[set] - ClaimBeforeTower, () =>
         {
-            foreach (var left in new[] { true, false })
+            foreach (var group in Groups)
             {
-                var soaker = Member(set + 1, left);
+                var soaker = Member(set + 1, group);
                 if (!Drives(soaker) || world.Party.Get(soaker) is not { } member || !member.IsAlive()) continue;
-                var tower = TowerSpot(state.Towers[set], TowerCardinal(state.Towers[set], left));
+                var tower = TowerSpot(state.Towers[set], TowerCardinal(state.Towers[set], group));
                 var mine = Vector2.Distance(Live(soaker), tower);
                 if (mine <= TowerRadius) continue;
-                MoveNow(soaker, SoakSpot(state.Towers[set], left), Precise);
+                MoveNow(soaker, SoakSpot(state.Towers[set], group), Precise);
             }
         });
 
@@ -462,11 +483,11 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
         return false;
     }
 
-    private PartyRole Member(int number, bool left) => state.WithNumber(number).First(role => inLeftGroup[role] == left);
+    private PartyRole Member(int number, int group) => state.WithNumber(number).First(role => groupOf[role] == group);
 
-    private static int TowerCardinal(LoopTowerSet towers, bool left) => left ? towers.Cardinals[1] : towers.Cardinals[0];
+    private static int TowerCardinal(LoopTowerSet towers, int group) => towers.Cardinals[group];
 
-    private static int DropCardinal(LoopTowerSet towers, bool left) => left ? towers.FreeCardinals[1] : towers.FreeCardinals[0];
+    private static int DropCardinal(LoopTowerSet towers, int group) => towers.FreeCardinals[group];
 
     private static Vector2 HoldSpot(int cardinal) => TopCompass.Point(HoldRadius, cardinal * 90f);
 
@@ -483,9 +504,9 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
         return Vector2.Dot(side, tower - nearestHolder) < 0f ? -side : side;
     }
 
-    private static Vector2 SoakSpot(LoopTowerSet towers, bool left)
+    private static Vector2 SoakSpot(LoopTowerSet towers, int group)
     {
-        var tower = TowerSpot(towers, TowerCardinal(towers, left));
+        var tower = TowerSpot(towers, TowerCardinal(towers, group));
         return tower + AwayFromNearestHolder(towers, tower) * SoakSideOffset;
     }
 
@@ -495,18 +516,18 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
         return tower + AwayFromNearestHolder(towers, tower) * IdleSideOffset + Vector2.Normalize(tower) * outset;
     }
 
-    private static Vector2 TakerWaitSpot(LoopTowerSet towers, bool left)
+    private static Vector2 TakerWaitSpot(LoopTowerSet towers, int group)
     {
-        var holder = HoldSpot(DropCardinal(towers, left));
+        var holder = HoldSpot(DropCardinal(towers, group));
         var tower = towers.Cardinals.MinBy(cardinal => Vector2.Distance(TowerSpot(towers, cardinal), holder));
         return BesideTower(towers, tower, 0f);
     }
 
-    private (int Left, int Right) NearestTowers(LoopTowerSet towers, PartyRole left, PartyRole right)
+    private int[] NearestTowers(LoopTowerSet towers, PartyRole first, PartyRole second)
     {
         var (a, b) = (towers.Cardinals[0], towers.Cardinals[1]);
         float Walk(PartyRole role, int cardinal) => Vector2.Distance(planned[role], TowerSpot(towers, cardinal));
-        return Walk(left, a) + Walk(right, b) <= Walk(left, b) + Walk(right, a) ? (a, b) : (b, a);
+        return Walk(first, a) + Walk(second, b) <= Walk(first, b) + Walk(second, a) ? [a, b] : [b, a];
     }
 
     private bool Drives(PartyRole role) => world.Party.Get(role) is { } member && world.Party.IsBotDriven(member);
@@ -598,7 +619,7 @@ public sealed class TopP1ProgramLoopAi(bool automarkers) : IScenarioAi<TopP1Prog
     }
 
     private List<PartyRole> MarkerOrder(int number)
-        => state.WithNumber(number).OrderBy(MarkerRank).ThenBy(role => (int)role).ToList();
+        => state.WithNumber(number).OrderBy(role => lpdu ? groupOf[role] : MarkerRank(role)).ThenBy(role => (int)role).ToList();
 
     private static int MarkerRank(PartyRole role) => role switch
     {
