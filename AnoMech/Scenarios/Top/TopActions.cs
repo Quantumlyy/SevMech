@@ -331,6 +331,29 @@ public static class TopActions
     // -- P3 Monitors --
 
     // -- P4 Blue Screen --
+    // P3's last Ion Efflux, this far into its bar as the phase opens.
+    public static readonly EnemyAction IonEffluxUnderWay = new(ActionId.IonEfflux)
+    {
+        Cast = new() { ElapsedAtStart = 4.67f },
+    };
+
+    public static readonly EnemyAction P4WaveCannonProtean = new(ActionId.P4WaveCannonProtean)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects = [Damage(MagicVulns), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+    };
+
+    public static readonly EnemyAction P4WaveCannonProteanAoe = new(ActionId.P4WaveCannonProteanAoe)
+    {
+        Cast = new() { OmenDelay = 4.3f, AnimationLock = 1.1f },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
+
+    public static readonly EnemyAction P4WaveCannonStack = new(ActionId.P4WaveCannonStack)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects = [Damage(MagicVulns, split: Stack(4)), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+    };
 
     // -- P6 Alpha Omega --
 
