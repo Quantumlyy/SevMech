@@ -14,9 +14,9 @@ using Actions = AnoMech.Scenarios.Top.TopActions;
 namespace AnoMech.Scenarios.Top.P1Pantokrator;
 
 // From the last Blaster's aftermath to the second Wave Cannon Kyrios. Two opposite cones turn
-// around the beetle while puddles drop under everyone; each In Line number in turn takes a
-// missile and a line stack. Then the two farthest bait five tank cleaves while lasers go through
-// the marked players.
+// around the beetle a step every two seconds while puddles drop under everyone every two
+// seconds; each In Line number in turn takes a missile and a line stack. Then the two farthest
+// bait five tank cleaves while lasers go through the marked players.
 public sealed class TopP1PantokratorScenario : IMultiplayerReplayable
 {
     public string Name => "Pantokrator";
@@ -38,18 +38,17 @@ public sealed class TopP1PantokratorScenario : IMultiplayerReplayable
     // Radians per second.
     private const float BeetleTurnSpeed = 8f;
     private const float FlameCastSeconds = 4f;
-    // UNVERIFIED: the pairs' cadence and step were never measured. Fourteen pairs two seconds
-    // apart, each a step on from the last, span the 26s the real ones do. Times are the
-    // ActionEffect's; the hit snapshots 0.3s before it.
+    // Times are the ActionEffect's; the hit snapshots 0.3s before it.
     private const int FlamePairs = 14;
     private const float FirstFlame = 14.1f;
     private const float FlameInterval = 2f;
-    // UNVERIFIED: the puddles' cadence was never measured.
-    private const int PuddleWaves = 8;
-    private const float FirstPuddles = 14.5f;
-    private const float PuddleInterval = 3f;
+    private const int PuddleWaves = 10;
+    private const float FirstPuddles = 17.66f;
+    private const float PuddleInterval = 2f;
     private static readonly float[] SetTimes = [20.1f, 26.1f, 32.1f, 38.1f];
-    private static readonly float[] CleaveTimes = [46.8f, 48.9f, 50.9f, 53f, 55.1f];
+    private static readonly float[] CleaveTimes = [46.76f, 48.8f, 50.9f, 53f, 55.1f];
+    private const int LasersPerSet = 3;
+    private const int SparedFromLasers = 2;
 
     private SimWorld world = null!;
     private SimParty party = null!;
@@ -59,6 +58,7 @@ public sealed class TopP1PantokratorScenario : IMultiplayerReplayable
 
     private SimEnemy? beetle;
     private TopHelpers? helpers;
+    private readonly List<PartyRole>[] lasers = [[], []];
 
     public void Run(SimWorld worldParam, int? selectedAi)
     {
@@ -68,6 +68,7 @@ public sealed class TopP1PantokratorScenario : IMultiplayerReplayable
         LastState = state;
         beetle = null;
         helpers = null;
+        foreach (var set in lasers) set.Clear();
         if (selectedAi is { } idx && idx < AiStrats.Count)
             ((IScenarioAi<TopP1PantokratorState>)AiStrats[idx]).Run(state, world);
 
@@ -88,13 +89,13 @@ public sealed class TopP1PantokratorScenario : IMultiplayerReplayable
             var s = set;
             world.Events.Add(SetTimes[set], () => ResolveSet(s));
         }
-        world.Events.Add(38.2f, ClearInLine);
-        world.Events.Add(41.9f, () => MarkLasers(state.FirstLasers));
-        world.Events.Add(46.8f, () => FireLasers(state.FirstLasers));
+        world.Events.Add(41.65f, PickLasers);
+        world.Events.Add(41.65f, () => MarkLasers(0));
+        world.Events.Add(46.76f, () => FireLasers(0));
         foreach (var time in CleaveTimes)
             world.Events.Add(time, CastCleaves);
-        world.Events.Add(50.7f, () => MarkLasers(state.SecondLasers));
-        world.Events.Add(55.6f, () => FireLasers(state.SecondLasers));
+        world.Events.Add(50.7f, () => MarkLasers(1));
+        world.Events.Add(55.8f, () => FireLasers(1));
     }
 
     public void Tick(float delta, float elapsed) => TurnBeetleToTank(delta);
@@ -130,11 +131,10 @@ public sealed class TopP1PantokratorScenario : IMultiplayerReplayable
                 party.Get(role)?.AddStatus(InLineStatuses[number - 1]);
     }
 
-    private void ClearInLine()
+    private void ClearInLine(int number)
     {
-        foreach (var member in party.ActiveMembers())
-            foreach (var inLine in InLineStatuses)
-                member.RemoveStatus(inLine);
+        foreach (var role in state.WithNumber(number))
+            party.Get(role)?.RemoveStatus(InLineStatuses[number - 1]);
     }
 
     private void CastFlames(int pair)
@@ -156,21 +156,35 @@ public sealed class TopP1PantokratorScenario : IMultiplayerReplayable
     // blast's vuln still on.
     private void ResolveSet(int set)
     {
+        ClearInLine(TopP1PantokratorState.SpreadNumber(set));
         foreach (var member in Members(state.WithNumber(TopP1PantokratorState.SpreadNumber(set))))
             helpers?.Next(Origin)?.Cast(Actions.GuidedMissileKyrios, member);
         foreach (var member in Members(state.WithNumber(TopP1PantokratorState.StackNumber(set))))
             helpers?.Next(Origin)?.Cast(Actions.CondensedWaveCannonKyrios, member);
     }
 
-    private void MarkLasers(IEnumerable<PartyRole> roles)
+    // The two farthest when the first markers go out are left to the cleaves; the rest take a
+    // laser each, three per set.
+    private void PickLasers()
     {
-        foreach (var member in Members(roles))
+        var spared = party.Find.FarestN(Origin.Position, SparedFromLasers).ToHashSet();
+        var marked = state.LaserOrder.Select(party.Get).OfType<SimCharacter>()
+            .Where(member => member.IsAlive() && !spared.Contains(member))
+            .Select(member => ((ISimPartyMember)member).Role)
+            .ToList();
+        lasers[0].AddRange(marked.Take(LasersPerSet));
+        lasers[1].AddRange(marked.Skip(LasersPerSet).Take(LasersPerSet));
+    }
+
+    private void MarkLasers(int set)
+    {
+        foreach (var member in Members(lasers[set]))
             member.AttachLockonVfx(LockonId.WaveCannonKyrios);
     }
 
-    private void FireLasers(IEnumerable<PartyRole> roles)
+    private void FireLasers(int set)
     {
-        foreach (var member in Members(roles))
+        foreach (var member in Members(lasers[set]))
             helpers?.Next(Origin)?.Cast(Actions.WaveCannonKyrios, member);
     }
 
@@ -184,12 +198,12 @@ public sealed class TopP1PantokratorScenario : IMultiplayerReplayable
         => roles.Select(role => party.Get(role)).OfType<SimCharacter>().Where(member => member.IsAlive()).ToList();
 
     public MpMessage? BuildReplayStateMessage()
-        => LastState is { } s ? new TopP1PantokratorAiReplayStateMessage(s.InLine.List, s.FlameStart, s.Clockwise, s.FirstLasers.ToArray()) : null;
+        => LastState is { } s ? new TopP1PantokratorAiReplayStateMessage(s.InLine.List, s.FlameStart, s.Clockwise, s.LaserOrder.ToArray()) : null;
 
     public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
     {
         if (message is not TopP1PantokratorAiReplayStateMessage msg) return null;
-        if (TopP1PantokratorState.FromNetworkReplay(replayWorld.Party, msg.InLine, msg.FlameStart, msg.Clockwise, msg.FirstLasers) is not { } shadowState)
+        if (TopP1PantokratorState.FromNetworkReplay(replayWorld.Party, msg.InLine, msg.FlameStart, msg.Clockwise, msg.LaserOrder) is not { } shadowState)
             return null;
         ((IScenarioAi<TopP1PantokratorState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
         return shadowState;

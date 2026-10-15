@@ -21,8 +21,9 @@ public sealed class TopP1PantokratorState
     // turns one step on, clockwise or not.
     public int FlameStart { get; }
     public bool Clockwise { get; }
-    // The first Wave Cannon Kyrios set's targets; the other four make up the second.
-    public IReadOnlyList<PartyRole> FirstLasers { get; }
+    // Wave Cannon Kyrios takes its marked players from the front of this, skipping the two the
+    // cleaves have.
+    public IReadOnlyList<PartyRole> LaserOrder { get; }
 
     public TopP1PantokratorState(Rng rng, SimParty party, TopP1PantokratorStateOverrides overrides)
     {
@@ -35,31 +36,29 @@ public sealed class TopP1PantokratorState
         }.Build(rng, party);
         FlameStart = overrides.FlameStart is { } start && start is >= 0 and < FlameBearings ? start : rng.NextInt(FlameBearings);
         Clockwise = overrides.Clockwise ?? rng.NextBool();
-        FirstLasers = overrides.FirstLasers ?? rng.Shuffle(PerRole.All).Take(4).ToList();
+        LaserOrder = overrides.LaserOrder ?? rng.Shuffle(PerRole.All);
     }
 
-    private TopP1PantokratorState(SimParty party, PartyRole[] inLine, int flameStart, bool clockwise, PartyRole[] firstLasers)
+    private TopP1PantokratorState(SimParty party, PartyRole[] inLine, int flameStart, bool clockwise, PartyRole[] laserOrder)
     {
         InLine = new RoleList(party, inLine);
         FlameStart = flameStart;
         Clockwise = clockwise;
-        FirstLasers = firstLasers;
+        LaserOrder = laserOrder;
     }
 
-    public static TopP1PantokratorState? FromNetworkReplay(SimParty party, PartyRole[]? inLine, int flameStart, bool clockwise, PartyRole[]? firstLasers)
+    public static TopP1PantokratorState? FromNetworkReplay(SimParty party, PartyRole[]? inLine, int flameStart, bool clockwise, PartyRole[]? laserOrder)
     {
         if (inLine is not { Length: 8 } || inLine.Distinct().Count() != 8 || !inLine.All(Enum.IsDefined)
             || flameStart is < 0 or >= FlameBearings
-            || firstLasers is not { Length: 4 } || firstLasers.Distinct().Count() != 4 || !firstLasers.All(Enum.IsDefined))
+            || laserOrder is not { Length: 8 } || laserOrder.Distinct().Count() != 8 || !laserOrder.All(Enum.IsDefined))
             return null;
-        return new(party, inLine, flameStart, clockwise, firstLasers);
+        return new(party, inLine, flameStart, clockwise, laserOrder);
     }
 
     public int NumberOf(PartyRole role) => InLine.List.ToList().IndexOf(role) / 2 + 1;
 
     public IEnumerable<PartyRole> WithNumber(int number) => [InLine[2 * number - 2], InLine[2 * number - 1]];
-
-    public IEnumerable<PartyRole> SecondLasers => PerRole.All.Where(role => !FirstLasers.Contains(role));
 
     // Set k's missiles go to number k + 1; its line stacks go through number k + 3, wrapped.
     public static int SpreadNumber(int set) => set + 1;

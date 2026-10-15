@@ -10,7 +10,7 @@ namespace AnoMech.Tests;
 // flexes. The first cones point E and W and turn clockwise, so group 1 (MT M1 R RH) starts north
 // and group 2 (OT M2 C SH) south, both walking clockwise. At the first set (20.1) the cones point
 // S and N, group 1 is around E: M1 R RH line up along bearing 90 and MT, ahead of them, takes the
-// missile at (17.8,5.1). MT RH M1 R take the first lasers.
+// missile at (17.8,5.1). The tanks stand farthest for the cleaves; M1 R RH take the first lasers.
 public class TopP1PantokratorScenarioTests
 {
     private static NegativeRun<TopP1PantokratorScenario> Pantokrator(PartyRole player)
@@ -27,7 +27,7 @@ public class TopP1PantokratorScenarioTests
                 o.Number[CasterDps] = 4;
                 o.FlameStart = 3;
                 o.Clockwise = true;
-                o.FirstLasers = [MainTank, RegenHealer, MeleeDpsA, PhysRangedDps];
+                o.LaserOrder = [MeleeDpsA, PhysRangedDps, RegenHealer, MeleeDpsB, CasterDps, ShieldHealer, MainTank, OffTank];
             });
 
     [Test]
@@ -36,7 +36,7 @@ public class TopP1PantokratorScenarioTests
             .TeleportAt(13.6f, to: new(10, 0))
             .ShouldKill(ActionId.FlameThrowerFirst, MainTank);
 
-    // Frozen before the puddles at 20 drop, so one lands underfoot and resolves at 22.7.
+    // Frozen just after the puddles at 19.7 drop, so one lies underfoot and resolves at 22.4.
     [Test]
     public void StandingStillInYourPuddleDies()
         => Pantokrator(MainTank)

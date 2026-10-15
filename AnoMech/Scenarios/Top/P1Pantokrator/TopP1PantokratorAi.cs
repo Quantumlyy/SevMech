@@ -22,7 +22,7 @@ public sealed class TopP1PantokratorAi : IScenarioAi<TopP1PantokratorState>
     private const float FlameInterval = 2f;
     private const int FlamePairs = 14;
     private const float FlamesEnd = 39.8f;
-    private const float FirstPuddles = 14.5f;
+    private const float FirstPuddles = 17.66f;
     private static readonly float[] SetTimes = [20.1f, 26.1f, 32.1f, 38.1f];
     private const float GatherRadius = 7f;
     private const float GatherSpacing = 12f;
@@ -32,8 +32,8 @@ public sealed class TopP1PantokratorAi : IScenarioAi<TopP1PantokratorState>
     private const float MissileAhead = 18f;
     private const float PuddleCast = 2.7f;
     private const float PuddleReach = 5.6f;
-    private const float PuddleInterval = 3f;
-    private const int PuddleWaves = 8;
+    private const float PuddleInterval = 2f;
+    private const int PuddleWaves = 10;
     private static readonly float[] NudgeRings = [1.5f, 3f, 4.5f, 6f, 7.5f];
     private const float InnerLimit = 4f;
     private const float WallReach = 19f;

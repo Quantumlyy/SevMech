@@ -363,9 +363,9 @@ public sealed record TopP1ProgramLoopAiReplayStateMessage(
     PartyRole[] InLine, int[] TowerCardinals, int[] TowerShifts, PartyRole[] FirstTetherHolders) : MpMessage, IScenarioReplayStateMessage;
 
 // The subset TopP1PantokratorAi reads: the In Line order, the first cones' bearing step and turn,
-// and the first laser set.
+// and the order the lasers pick from.
 public sealed record TopP1PantokratorAiReplayStateMessage(
-    PartyRole[] InLine, int FlameStart, bool Clockwise, PartyRole[] FirstLasers) : MpMessage, IScenarioReplayStateMessage;
+    PartyRole[] InLine, int FlameStart, bool Clockwise, PartyRole[] LaserOrder) : MpMessage, IScenarioReplayStateMessage;
 
 public sealed record TopP3MonitorsAiReplayStateMessage(bool BossIsLeft, PartyRole[] Monitors, bool[] MonitorsAreLeft) : MpMessage, IScenarioReplayStateMessage;
 

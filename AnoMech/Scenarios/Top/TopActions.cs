@@ -345,7 +345,7 @@ public static class TopActions
         Effects = [Damage(MagicVulns, split: Stack(3))],
     };
 
-    // UNVERIFIED: the cone's width was never measured; 120 degrees follows ffxiv_bossmod.
+    // A 120-degree cone at one of the two farthest, so two tanks side by side both take both.
     public static readonly EnemyAction DiffuseWaveCannonKyrios = new(ActionId.DiffuseWaveCannonKyrios)
     {
         Cast = new() { AnimationLock = 1.1f },

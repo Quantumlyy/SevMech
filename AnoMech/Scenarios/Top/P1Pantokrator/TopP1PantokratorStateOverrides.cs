@@ -16,7 +16,7 @@ public sealed class TopP1PantokratorStateOverrides
     public PerRoleSetting<int> Number { get; set; } = new();
 
     // Headless runs pin the rest of the roll. Internal, so settings sync and the summary skip it.
-    internal IReadOnlyList<PartyRole>? FirstLasers { get; set; }
+    internal IReadOnlyList<PartyRole>? LaserOrder { get; set; }
 
     public SettingsConflicts Validate()
     {
