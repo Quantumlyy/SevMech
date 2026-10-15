@@ -196,7 +196,6 @@ public static class TopConstants
         public const uint WaveCannon = 31603;                  // Sigma canonical wave cannon
         public const uint WaveCannonAoe = 31604;
         public const uint WaveCannon_7B80 = 31616;                  // Omega canonical wave cannon
-        public const uint WaveCannonKyrios = 31505;
         public const uint OversampledWaveCannonAoe = 31597;         // Helper->players, no cast, range 7 circle spread
         public const uint OversampledWaveCannonRight = 31595;       // P3 boss monitor, cleaves its right side
         public const uint OversampledWaveCannonLeft = 31596;        // P3 boss monitor, cleaves its left side
@@ -251,6 +250,16 @@ public static class TopConstants
         public const uint BlasterLast = 31497;
         public const uint BlasterAoe = 31498;                        // Helper->players, range 15 circle around a tether holder
 
+        // -- P1 Pantokrator --
+        public const uint Pantokrator = 31499;
+        public const uint BallisticImpact = 31500;                   // Helper->location, 3s cast, range 5 circle under every player
+        public const uint FlameThrowerFirst = 31501;                 // Helper->self, 4s cast, range 65 60-degree cone
+        public const uint FlameThrowerRest = 32368;
+        public const uint GuidedMissileKyrios = 31502;               // Helper->player, range 5 circle
+        public const uint CondensedWaveCannonKyrios = 31503;         // Helper->self, range 50 width 6 line through a player, shared
+        public const uint DiffuseWaveCannonKyrios = 31504;           // Helper->self, range 60 cone at one of the two farthest
+        public const uint WaveCannonKyrios = 31505;                  // Helper->self, range 50 width 6 line through a marked player
+
         // -- P3 Hello World / Monitors --
         public const uint HelloWorld = 31573;
         public const uint LatentDefect = 31599;
@@ -301,12 +310,9 @@ public static class TopConstants
         public const uint ColossalBlow = 31566;                     // 0x7B4E, range 11 circle
 
         // -- Misc --
-        public const uint BallisticImpact = 31500;
         public const uint OmegaBlaster = 32374;
         public const uint BlasterEffect = 31641;
         public const uint OmegaBlasterAoe = 32373;
-        public const uint FlameThrower = 32368;
-        public const uint FlameThrower_7B0D = 31501;
         public const uint SubjectSimulationFDynamis = 32559;
         public const uint SubjectSimulationF = 31515;
         public const uint SigmaProgramLoop = 31640;
@@ -345,9 +351,6 @@ public static class TopConstants
         public const uint PartySynergyF = 31551;
         public const uint Spotlight = 31536;
         public const uint SubjectSimulationM = 31516;
-        public const uint CondensedWaveCannonKyrios = 31503;
-        public const uint DiffuseWaveCannonKyrios = 31504;
-        public const uint GuidedMissileKyrios = 31502;
 
         // -- P6 Wave Cannon 2 / Cosmo (Alpha Omega) --
         public const uint CosmoMemory = 31649;                      // 0x7BA1
@@ -478,6 +481,7 @@ public static class TopConstants
         public const uint PlaystationO = 416;
         public const uint PlaystationTr = 417;
         public const uint WaveCannon = 244;
+        public const uint WaveCannonKyrios = 23;
         public const uint OptimizedMeteor = 346;                    // P6 Cosmo Meteor flare
 
         public static readonly IReadOnlyList<uint> Playstation = [PlaystationX, PlaystationSq, PlaystationO, PlaystationTr];
