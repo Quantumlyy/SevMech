@@ -88,6 +88,13 @@ public static class EnemyActionEffects
     public static IEnemyActionEffect OnHavingStatus(ushort statusId, IEnemyActionEffect effect)
         => new FilteredEffect(effect, (_, hits) => hits.Where(t => t.HasStatus(statusId)));
 
+    // `effect` applied to those hit who lack `statusId` when it runs.
+    public static IEnemyActionEffect OnLackingStatus(ushort statusId, IEnemyActionEffect effect)
+        => new FilteredEffect(effect, (_, hits) => hits.Where(t => !t.HasStatus(statusId)));
+
+    // Shown as a miss on everyone it reaches: an action that passes over them.
+    public static IEnemyActionEffect Dodge() => new DodgeEffect();
+
     // `effect` applied to the NPCs of `bnpcBaseId` the area caught instead of the party hits (UWU's
     // Razor Plumes, pushed by Super Cyclone).
     public static IEnemyActionEffect OnNpcs(uint bnpcBaseId, IEnemyActionEffect effect)
@@ -108,6 +115,15 @@ internal sealed class ShowHitEffect(uint amount) : IEnemyActionEffect
         var kind = DamageKinds.FromAttackType(Natives.Data.Action(ctx.Action.ActionId)?.AttackType ?? 0);
         foreach (var target in hits)
             ctx.ShowDamage(target, amount, kind);
+    }
+}
+
+internal sealed class DodgeEffect : IEnemyActionEffect
+{
+    public void Apply(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits)
+    {
+        foreach (var target in hits)
+            ctx.Dodge(target);
     }
 }
 

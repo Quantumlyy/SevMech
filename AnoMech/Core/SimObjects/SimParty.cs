@@ -256,6 +256,7 @@ public sealed class SimParty : ISimObject
         ClearMarks();
         SetInCombat(false);
         LimitBreak.Restore();
+        Natives.PartyHud.SetDisplayOrder(null);
         foreach (var member in AllMembers()) member.ClearRunState();
         confusedChases.Clear();
     }
