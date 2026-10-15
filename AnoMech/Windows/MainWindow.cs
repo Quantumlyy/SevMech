@@ -606,6 +606,8 @@ public unsafe class MainWindow : Window, IDisposable
                 multiplayerUi.DrawScenarioSettings(scenario);
             else
             {
+                if (scenario.HasLocalSettings)
+                    scenario.DrawLocalSettings(_roleOverride ?? PartyPresets.SkipRoleForJob(Plugin.ObjectTable.LocalPlayer?.ClassJob.RowId ?? 0));
                 scenario.DrawSettings();
                 scenario.DrawMultiplayerSettings();
             }

@@ -676,7 +676,7 @@ public sealed partial class MultiplayerManager : IDisposable
     {
         if (!IsHost) return;
         var overrides = scenario is { SupportsMultiplayer: true } ? scenario.SettingsOverrides : null;
-        var lines = ScenarioSettingsSummary.Describe(overrides);
+        var lines = scenario is { SupportsMultiplayer: true } ? scenario.SettingsSummary.ToList() : new List<string>();
         var json = ScenarioSettingsSync.Serialize(overrides);
         if (lines.SequenceEqual(Session.ScenarioSettings) && json == Session.ScenarioSettingsJson) return;
         Session.ScenarioSettings = lines;
