@@ -96,6 +96,19 @@ public static class EnemyActionEffects
     // `effect` applied to the `count` hit nearest the origin (the front of a wild charge).
     public static IEnemyActionEffect OnFront(int count, IEnemyActionEffect effect)
         => new FilteredEffect(effect, (_, hits) => hits.Take(count));
+
+    // A hit that lands for `amount` on the flytext and nothing else: an enrage's number.
+    public static IEnemyActionEffect ShowHit(uint amount) => new ShowHitEffect(amount);
+}
+
+internal sealed class ShowHitEffect(uint amount) : IEnemyActionEffect
+{
+    public void Apply(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits)
+    {
+        var kind = DamageKinds.FromAttackType(Natives.Data.Action(ctx.Action.ActionId)?.AttackType ?? 0);
+        foreach (var target in hits)
+            ctx.ShowDamage(target, amount, kind);
+    }
 }
 
 internal sealed class DefeatCasterEffect : IEnemyActionEffect

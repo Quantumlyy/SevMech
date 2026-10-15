@@ -159,7 +159,8 @@ public sealed record EnemyState(
     float? EffectX, float? EffectY, float? EffectZ,
     int? EffectAnimationTargetEnemyNetId, PartyRole? EffectAnimationTargetRole,
     int? EffectActionTargetEnemyNetId, PartyRole? EffectActionTargetRole,
-    ActorEngineState? Engine = null);
+    ActorEngineState? Engine = null,
+    uint MaxHealth = 0);
 
 // Each end resolves to a live enemy (by NetId) or a party role.
 public sealed record TetherState(int NetId, ushort TetherId, int? AEnemyNetId, PartyRole? ARole, int? BEnemyNetId, PartyRole? BRole);

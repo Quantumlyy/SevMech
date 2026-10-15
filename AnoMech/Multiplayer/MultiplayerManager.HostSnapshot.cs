@@ -133,7 +133,8 @@ public sealed partial class MultiplayerManager
                 effectActionTargetEnemyNetId, effectActionTargetRole,
                 enemy.HasEngineState
                     ? new ActorEngineState(enemy.LastMode?.Mode ?? 0, enemy.LastMode?.Param ?? 0, enemy.ModeSeq)
-                    : null));
+                    : null,
+                cfg.MaxHealth));
         }
 
         var liveTethers = world.Children.OfType<SimTether>().Where(t => t.IsActive).ToList();

@@ -105,7 +105,8 @@ public sealed partial class MultiplayerManager
                     ModelCharaId: e.ModelCharaId != 0
                         && SimAssets.Allow(SimAssetKind.ModelChara, e.ModelCharaId, $"enemy NetId {e.NetId} model")
                         ? e.ModelCharaId : 0,
-                    e.InitialModeAttributeFlags);
+                    e.InitialModeAttributeFlags,
+                    MaxHealth: e.MaxHealth);
                 DiagnosticLog.Info($"[Multiplayer] Peer: first snapshot of enemy NetId {e.NetId} -- BNpcBase {e.BNpcBaseId}, pos ({e.X:F2},{e.Y:F2},{e.Z:F2}), rot {e.Rotation:F2}, visibility {e.Visibility}"
                     + $", cast {e.CastActionId}/seq {e.CastSeq}, effect {e.EffectActionId}/seq {e.EffectSeq} -- spawning local doppel.");
                 enemy = world.SpawnEnemy(config);

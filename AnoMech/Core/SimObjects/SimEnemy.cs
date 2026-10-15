@@ -66,6 +66,9 @@ public record struct EnemySpawnConfig(
     // Retail's layout instance for the BNpc, in the territory's own layout. The Razor Plume's idle
     // visual needs this or the director EventId BattleCharas sends; UNVERIFIED which.
     uint LayoutId = 0,
+    // The real actor's HP, when its bar is part of the fight (an add a limit break has to kill, a
+    // boss met mid-phase). 0 = the engine's default.
+    uint MaxHealth = 0,
     // False for an ally the duty spawns (FRU's Gaia and Ryne): it sends battalion 0, as retail
     // does, so the client treats it as friendly.
     bool IsHostile = true);

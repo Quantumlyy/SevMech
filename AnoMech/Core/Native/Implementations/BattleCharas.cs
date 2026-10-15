@@ -109,8 +109,8 @@ internal sealed unsafe class BattleCharas : IBattleCharas
         common.LayoutId = config.LayoutId;
         // Retail binds every duty BNpc to the duty's director.
         common.EventId = InstanceContentDirectorHelper.DirectorEventId();
-        common.MaxHealthPoints = EnemyMaxHealth;
-        common.HealthPoints = EnemyMaxHealth;
+        common.MaxHealthPoints = config.MaxHealth != 0 ? config.MaxHealth : EnemyMaxHealth;
+        common.HealthPoints = common.MaxHealthPoints;
         common.DisplayFlags = config.DisplayFlags ?? (uint)config.Visibility;
         common.MaxResourcePoints = helper ? (ushort)0 : SpawnResourcePoints;
         common.ResourcePoints = common.MaxResourcePoints;

@@ -267,6 +267,18 @@ public static class TopActions
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
+    // -- P1 Program Loop --
+
+    // -- P3 Intermission --
+
+    // -- P3 Hello World --
+
+    // -- P3 Monitors --
+
+    // -- P4 Blue Screen --
+
+    // -- P6 Alpha Omega --
+
     // -- P2 Party Synergy --
     public static readonly EnemyAction Spotlight = new(ActionId.Spotlight)
     {

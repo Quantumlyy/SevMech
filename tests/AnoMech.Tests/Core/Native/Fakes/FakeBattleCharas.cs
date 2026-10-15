@@ -65,8 +65,8 @@ internal sealed class FakeBattleCharas : IBattleCharas
             Position = placement.Position,
             Rotation = placement.Rotation,
             HitboxRadius = NativeHitboxRadius(modelChara, bnpc.Scale),
-            MaxHealth = EnemyMaxHealth,
-            Health = EnemyMaxHealth,
+            MaxHealth = config.MaxHealth != 0 ? config.MaxHealth : EnemyMaxHealth,
+            Health = config.MaxHealth != 0 ? config.MaxHealth : EnemyMaxHealth,
             HasDrawObject = true,
             IsDrawObjectVisible = config.Visibility == SpawnVisibility.Visible,
         };
