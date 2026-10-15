@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Scenarios.Top.P2PartySynergy;
+using AnoMech.Scenarios.Top.P3HelloWorld;
 using AnoMech.Scenarios.Top.P3Intermission;
 using AnoMech.Scenarios.Top.P3Monitors;
 using AnoMech.Scenarios.Top.P5Delta;
@@ -76,6 +77,7 @@ public sealed class ScenarioCatalog
         new UmadP5ForsakenNull(),
         new TopP2PartySynergyScenario(),
         new TopP3IntermissionScenario(),
+        new TopP3HelloWorldScenario(),
         new TopP3MonitorsScenario(),
         new TopP5DeltaScenario(),
         new TopP5SigmaScenario(),

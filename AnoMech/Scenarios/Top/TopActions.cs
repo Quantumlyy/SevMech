@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Core.EnemyActions;
+using AnoMech.Core.SimObjects;
 using static AnoMech.Core.EnemyActions.Distribution;
 using static AnoMech.Core.EnemyActions.EnemyActionEffects;
 using static AnoMech.Core.EnemyActions.Severity;
@@ -327,6 +329,114 @@ public static class TopActions
     };
 
     // -- P3 Hello World --
+    public static readonly EnemyAction HelloWorld = new(ActionId.HelloWorld)
+    {
+        Cast = new() { AnimationLock = 3.1f },
+        Timing = new() { DamageDelay = 0.6f },
+        Effects = [Damage(MagicVulns)],
+    };
+
+    public static readonly EnemyAction CriticalSynchronizationBug = new(ActionId.CriticalSynchronizationBug)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.6f },
+        Effects =
+        [
+            Damage(MagicVulns, split: Stack(2)),
+            ApplyStatus(StatusId.MagicVulnerabilityUp, 0.96f),
+            RemoveStatus(StatusId.HWNeedStack),
+        ],
+    };
+
+    public static readonly EnemyAction CriticalOverflowBug = new(ActionId.CriticalOverflowBug)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.6f },
+        Effects =
+        [
+            Damage(MagicVulns),
+            ApplyStatus(StatusId.MagicVulnerabilityUp, 0.96f),
+            OnOthers(RemoveStatus(StatusId.HWNeedDefamation)),
+        ],
+    };
+
+    // A rot running out: its holder takes the hit, anyone else inside dies.
+    public static readonly EnemyAction CriticalUnderflowBug = RotExplosion(ActionId.CriticalUnderflowBug);
+    public static readonly EnemyAction CriticalPerformanceBug = RotExplosion(ActionId.CriticalPerformanceBug);
+
+    private static EnemyAction RotExplosion(uint actionId) => new(actionId)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.6f },
+        Effects = [OnTarget(Damage(MagicVulns)), OnOthers(Damage(MagicVulns, Lethal))],
+    };
+
+    // A tower's hit leaves no vulnerability; its debuff is cleansed by that colour's rot running
+    // out on the holder. It snapshots with its effect, not at the bar's end: the Christmas tether
+    // broken as the last patch's tethers go live leaves a vulnerability that has only just run out.
+    public static readonly EnemyAction CascadingLatentDefect =
+        HelloWorldTower(ActionId.CascadingLatentDefect, ActionId.CascadingLatentDefectUnsoaked, StatusId.HWRedRot, StatusId.HWRedTower);
+    public static readonly EnemyAction LatentPerformanceDefect =
+        HelloWorldTower(ActionId.LatentPerformanceDefect, ActionId.LatentPerformanceDefectUnsoaked, StatusId.HWBlueRot, StatusId.HWBlueTower);
+
+    private static EnemyAction HelloWorldTower(uint actionId, uint unsoakedActionId, ushort rotStatusId, ushort towerStatusId) => new(actionId)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { ResolveSnapshotOffset = 0.28f, DamageDelay = 0.63f },
+        Effects =
+        [
+            Damage(MagicVulns),
+            ApplyStatus(towerStatusId, 10f, delayToEffectResult: true),
+            FollowUp(HelloWorldFailure(unsoakedActionId, "tower unsoaked"), when: ctx => ctx.Hits.Count == 0),
+            FollowUp(HelloWorldFailure(unsoakedActionId, "tower soaked without its rot"), when: ctx => ctx.Hits.Any(soaker => !soaker.HasStatus(rotStatusId))),
+        ],
+    };
+
+    public static readonly EnemyAction CascadingLatentDefectExpired =
+        HelloWorldFailure(ActionId.CascadingLatentDefectExpired, "tower debuff ran out before its rot did");
+    public static readonly EnemyAction LatentPerformanceDefectExpired =
+        HelloWorldFailure(ActionId.LatentPerformanceDefectExpired, "tower debuff ran out before its rot did");
+
+    // On whoever still carries the need when it runs out.
+    public static readonly EnemyAction LatentDefectExpired =
+        HelloWorldFailure(ActionId.LatentDefectExpired, "no defamation taken before Latent Defect ran out");
+    public static readonly EnemyAction LatentSynchronizationDefect =
+        HelloWorldFailure(ActionId.LatentSynchronizationDefect, "no stack shared before Latent Synchronization Bug ran out");
+
+    private static EnemyAction HelloWorldFailure(uint actionId, string explanation) => new(actionId)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.6f },
+        Effects = [Damage(MagicVulns, Lethal)],
+        DeathExplanation = explanation,
+    };
+
+    // Anyone Critical Error finds without an Overflow Debugger gets a defamation that wipes the
+    // party during Monitors.
+    public static readonly EnemyAction CriticalError = new(ActionId.CriticalError)
+    {
+        Cast = new() { AnimationLock = 3.1f },
+        Timing = new() { DamageDelay = 0.6f },
+        Effects = [Damage(MagicVulns), ApplyStatus(StatusId.MagicVulnerabilityUp, 1f), new OverflowDebuggerCheck()],
+    };
+
+    private sealed class OverflowDebuggerCheck : IEnemyActionEffect
+    {
+        public void Apply(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits)
+        {
+            foreach (var target in hits)
+            {
+                if (ctx.IsKilled(target) || !target.IsAlive()) continue;
+                if (target.HasStatus(StatusId.HWImmuneDefamation))
+                {
+                    target.RemoveStatus(StatusId.HWImmuneDefamation);
+                    continue;
+                }
+                ctx.AddStatus(target, StatusId.HWDefamation, 21f);
+                ctx.Kill(target, "no Overflow Debugger");
+            }
+        }
+    }
 
     // -- P3 Monitors --
 
