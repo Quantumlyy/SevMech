@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using AnoMech.Core.EnemyActions;
+using AnoMech.Core.Native.Interfaces;
+using AnoMech.Core.SimObjects;
 using static AnoMech.Core.EnemyActions.Distribution;
 using static AnoMech.Core.EnemyActions.EnemyActionEffects;
 using static AnoMech.Core.EnemyActions.Severity;
@@ -268,6 +271,56 @@ public static class TopActions
     };
 
     // -- P1 Program Loop --
+    private static readonly VulnSpec ProgramLoopVulns = MagicVulns.VulnerableTo(StatusId.HPPenalty);
+
+    // The tether's blast: its holder is left with the HP Penalty and Ruin that make their next hit
+    // lethal; anyone else it reaches dies.
+    public static readonly EnemyAction ProgramLoopBlaster = new(ActionId.BlasterAoe)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Effects =
+        [
+            OnTarget(Damage(ProgramLoopVulns)),
+            OnTarget(ApplyRuin(ComeRuin, 2, 10.96f)),
+            OnTarget(ApplyStatus(StatusId.HPPenalty, 9f, delayToEffectResult: true)),
+            OnOthers(new LethalEffect("another player's tether")),
+        ],
+    };
+
+    // A tower's hit lands on every Looper holder inside it, whatever their number, and cleanses
+    // them; anyone else inside is a miss. A tower no Looper holder took obliterates the party.
+    public static readonly EnemyAction ProgramLoopTower = new(ActionId.StorageViolationSolo)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.63f },
+        Effects =
+        [
+            FollowUp(StorageViolationObliteration, when: ctx => !ctx.Hits.Any(hit => hit.HasStatus(StatusId.Looper))),
+            OnHavingStatus(StatusId.Looper, Damage(ProgramLoopVulns)),
+            OnHavingStatus(StatusId.Looper, ApplyRuin(ComeRuin, 2, 10.96f)),
+            OnLackingStatus(StatusId.Looper, Dodge()),
+            RemoveStatus(StatusId.FirstInLine),
+            RemoveStatus(StatusId.SecondInLine),
+            RemoveStatus(StatusId.ThirdInLine),
+            RemoveStatus(StatusId.FourthInLine),
+            RemoveStatus(StatusId.Looper),
+        ],
+    };
+
+    // Damage(Lethal) with the explanation the death needs.
+    private sealed class LethalEffect(string explanation) : IEnemyActionEffect
+    {
+        public void Apply(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits)
+        {
+            var kind = DamageKinds.FromAttackType(Natives.Data.Action(ctx.Action.ActionId)?.AttackType ?? 0);
+            foreach (var target in hits)
+            {
+                ctx.ShowDamage(target, Lethal.FlyTextAmount(kills: true), kind);
+                ctx.Kill(target, explanation);
+            }
+        }
+    }
 
     // -- P3 Intermission --
     // P2's enrage, this far into its bar by the scenario's first frames.

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using AnoMech.Scenarios.Top.P1ProgramLoop;
 using AnoMech.Scenarios.Top.P2PartySynergy;
 using AnoMech.Scenarios.Top.P3Intermission;
 using AnoMech.Scenarios.Top.P3Monitors;
@@ -74,6 +75,7 @@ public sealed class ScenarioCatalog
         new UmadP5CelestriadScenario(),
         new UmadP5ExaflaresScenario(),
         new UmadP5ForsakenNull(),
+        new TopP1ProgramLoopScenario(),
         new TopP2PartySynergyScenario(),
         new TopP3IntermissionScenario(),
         new TopP3MonitorsScenario(),
