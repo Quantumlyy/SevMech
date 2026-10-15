@@ -60,6 +60,7 @@ public sealed class SimPartyNpc : SimNpc, ISimPartyMember
 
     public void OnKilled(bool byEnvironment)
     {
+        AbortPlayedAction(CastCancelReason.Interrupted);
         GoDown(byEnvironment);
     }
 }
