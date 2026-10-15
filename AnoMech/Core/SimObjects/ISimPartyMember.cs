@@ -17,6 +17,8 @@ public interface ISimPartyMember : ISimObject, IPositioned
 {
     PartyRole Role { get; set;}
 
+    byte ClassJob { get; }
+
     // KO: the member stays present (IsActive) but lies on the floor.
     bool Dead { get; }
 

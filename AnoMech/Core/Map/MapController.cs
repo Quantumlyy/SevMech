@@ -20,6 +20,7 @@ public sealed class MapController
     // land in that window.
     private readonly List<PendingMapEffect> pendingEffects = new();
     private readonly List<PendingDirectorUpdate> pendingDirectorUpdates = new();
+    private readonly List<PendingBattleTalk> pendingBattleTalks = new();
 
     // IsInInstance goes true in Enter and false in Unload, so this also refuses to queue a
     // call that would otherwise fire on the next run.
@@ -60,11 +61,21 @@ public sealed class MapController
         public int FramesLeft;
     }
 
+    // A line is a timing cue: shown seconds late it would mistime the cast it announces.
+    private const int BattleTalkMaxFrames = 120;
+
+    private struct PendingBattleTalk
+    {
+        public uint SpeakerNameId, TextId, DurationMs;
+        public int FramesLeft;
+    }
+
     // ── Zone ─────────────────────────────────────────────────────────────────
 
     // True while a scenario was started by loading a client-side zone.
     // Cleared by Unload() and Reset().
     public bool IsInInstance { get; private set; }
+    public uint TerritoryId { get; private set; }
 
     // Apply weather after a zone load (1-second delayed to let the engine settle).
     public void ApplyWeather(byte weatherId) => Natives.Zone.ApplyWeather(weatherId);
@@ -72,16 +83,6 @@ public sealed class MapController
     // Mirrored to peers by MultiplayerManager; scenarios call SetWeather mid-fight for
     // arena-transform lighting cues that no SimObject carries.
     public event Action<byte, float>? WeatherChanged;
-
-    // Live toggle of the per-frame fog hold (see ZoneControl.FogHold) -- a scenario's debug knob.
-    // Mirrored to peers, whose own load-time value came from the phase and never moves again.
-    public event Action<float?>? FogHoldChanged;
-
-    public void SetFogHold(float? value)
-    {
-        Natives.Zone.FogHold = value;
-        FogHoldChanged?.Invoke(value);
-    }
 
     // Immediately change the active weather (mid-scenario). transition = fade seconds.
     public void SetWeather(byte weatherId, float transition = 0.5f)
@@ -100,6 +101,7 @@ public sealed class MapController
         pendingEffects.Clear();
         pendingSnapshot = null;
         pendingDirectorUpdates.Clear();
+        pendingBattleTalks.Clear();
         layerDumpFrame = int.MaxValue;
     }
 
@@ -170,22 +172,43 @@ public sealed class MapController
                 pendingDirectorUpdates[i] = pending;
             }
         }
+
+        for (int i = 0; i < pendingBattleTalks.Count; i++)
+        {
+            var pending = pendingBattleTalks[i];
+            if (Natives.Director.BattleTalk(pending.SpeakerNameId, pending.TextId, pending.DurationMs))
+            {
+                pendingBattleTalks.RemoveAt(i);
+                i--;
+                continue;
+            }
+            pending.FramesLeft--;
+            if (pending.FramesLeft <= 0)
+            {
+                DiagnosticLog.Warn($"[MapEffect] Dropped BattleTalk text={pending.TextId} after {BattleTalkMaxFrames} frames -- no director yet.");
+                pendingBattleTalks.RemoveAt(i);
+                i--;
+            }
+            else
+            {
+                pendingBattleTalks[i] = pending;
+            }
+        }
     }
 
     // Once the zone is loaded.
     public void Enter(uint territoryId)
     {
         IsInInstance = true;
+        TerritoryId = territoryId;
         layerDumpFrame = 0;
         Natives.MapEffects.Loaded = true;
         DiagnosticLog.Info($"[MapController] Enter: territoryId={territoryId}.");
     }
 
-    // Per phase; a phase without a fog hold clears a previous one's. A fresh load delays the
-    // weather so the engine settles; a loaded zone takes it now.
-    public void SetPhaseWeather(byte? weatherId, float? fogHold, bool freshLoad)
+    // A fresh load delays the weather so the engine settles; a loaded zone takes it now.
+    public void SetPhaseWeather(byte? weatherId, bool freshLoad)
     {
-        Natives.Zone.FogHold = fogHold;
         if (weatherId is not { } wid) return;
         if (freshLoad) ApplyWeather(wid);
         else SetWeather(wid);
@@ -197,6 +220,7 @@ public sealed class MapController
     // other replication path.
     public event Action<uint, byte>? EffectApplied;
     public event Action<uint, uint, uint, uint, uint, uint, uint>? DirectorUpdated;
+    public event Action<uint, uint, uint>? BattleTalked;
 
     // ProcessDirectorUpdate is where the server's own instance-state packets land, so only the
     // two categories scenarios actually emit are accepted from the network.
@@ -256,5 +280,19 @@ public sealed class MapController
             pendingDirectorUpdates.Add(new PendingDirectorUpdate { Category = category, Arg1 = arg1, Arg2 = arg2, Arg3 = arg3, Arg4 = arg4, Arg5 = arg5, Arg6 = arg6, FramesLeft = RetryMaxFrames });
         }
         if (broadcast) DirectorUpdated?.Invoke(category, arg1, arg2, arg3, arg4, arg5, arg6);
+    }
+
+    // A boss line: InstanceContentTextData textId in the BattleTalk box under BNpcName
+    // speakerNameId, voiced, for durationMs. Same broadcast rules as AddEffect.
+    public void BattleTalk(uint speakerNameId, uint textId, uint durationMs, bool broadcast = true)
+    {
+        if (!InSim(nameof(BattleTalk))) return;
+        if (!Natives.Director.BattleTalk(speakerNameId, textId, durationMs)
+            && TryReserveRetrySlot(pendingBattleTalks.Count, "BattleTalk"))
+        {
+            DiagnosticLog.Warn($"[MapEffect] BattleTalk text={textId} not ready yet -- queued for retry.");
+            pendingBattleTalks.Add(new PendingBattleTalk { SpeakerNameId = speakerNameId, TextId = textId, DurationMs = durationMs, FramesLeft = BattleTalkMaxFrames });
+        }
+        if (broadcast) BattleTalked?.Invoke(speakerNameId, textId, durationMs);
     }
 }

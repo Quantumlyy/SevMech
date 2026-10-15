@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios.Top;
@@ -42,8 +43,8 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(P2LockonsUpdateMessage), "p2LockonsUpdate")]
 [JsonDerivedType(typeof(MapEffectMessage), "mapEffect")]
 [JsonDerivedType(typeof(MapDirectorUpdateMessage), "mapDirectorUpdate")]
+[JsonDerivedType(typeof(MapBattleTalkMessage), "mapBattleTalk")]
 [JsonDerivedType(typeof(SetWeatherMessage), "setWeather")]
-[JsonDerivedType(typeof(SetFogHoldMessage), "setFogHold")]
 [JsonDerivedType(typeof(AnnouncementMessage), "announcement")]
 [JsonDerivedType(typeof(P4AiReplayStateMessage), "p4AiReplayState")]
 [JsonDerivedType(typeof(P5AiReplayStateMessage), "p5AiReplayState")]
@@ -53,6 +54,13 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP5OmegaAiReplayStateMessage), "topP5OmegaAiReplayState")]
 [JsonDerivedType(typeof(UltimatePredationAiReplayStateMessage), "ultimatePredationAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaAiReplayStateMessage), "topP5DeltaAiReplayState")]
+[JsonDerivedType(typeof(TopP1ProgramLoopAiReplayStateMessage), "topP1ProgramLoopAiReplayState")]
+[JsonDerivedType(typeof(TopP3MonitorsAiReplayStateMessage), "topP3MonitorsAiReplayState")]
+[JsonDerivedType(typeof(TopP3IntermissionAiReplayStateMessage), "topP3IntermissionAiReplayState")]
+[JsonDerivedType(typeof(TopP3HelloWorldAiReplayStateMessage), "topP3HelloWorldAiReplayState")]
+[JsonDerivedType(typeof(TopP4BlueScreenAiReplayStateMessage), "topP4BlueScreenAiReplayState")]
+[JsonDerivedType(typeof(TopP6AlphaOmegaAiReplayStateMessage), "topP6AlphaOmegaAiReplayState")]
+[JsonDerivedType(typeof(TopP6AlphaOmegaLimitBreakDueMessage), "topP6AlphaOmegaLimitBreakDue")]
 [JsonDerivedType(typeof(UmadP3LimitCutAiReplayStateMessage), "umadP3LimitCutAiReplayState")]
 [JsonDerivedType(typeof(UmadP1TeleTrouncingAiReplayStateMessage), "umadP1TeleTrouncingAiReplayState")]
 [JsonDerivedType(typeof(UmadP5FloodAiReplayStateMessage), "umadP5FloodAiReplayState")]
@@ -63,6 +71,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
 [JsonDerivedType(typeof(PeerAppliedRoleStatusMessage), "peerAppliedRoleStatus")]
+[JsonDerivedType(typeof(PeerLimitBreakMessage), "peerLimitBreak")]
 [JsonDerivedType(typeof(KickMessage), "kick")]
 public abstract record MpMessage;
 
@@ -155,17 +164,24 @@ public sealed record EnemyState(
     float? EffectX, float? EffectY, float? EffectZ,
     int? EffectAnimationTargetEnemyNetId, PartyRole? EffectAnimationTargetRole,
     int? EffectActionTargetEnemyNetId, PartyRole? EffectActionTargetRole,
-    ActorEngineState? Engine = null);
+    ActorEngineState? Engine = null,
+    uint MaxHealth = 0);
 
 // Each end resolves to a live enemy (by NetId) or a party role.
 public sealed record TetherState(int NetId, ushort TetherId, int? AEnemyNetId, PartyRole? ARole, int? BEnemyNetId, PartyRole? BRole);
 
 // Host-authoritative even for a peer's own role: a peer runs no scenario logic, so statuses
-// and HP come from here.
+// and HP come from here. PlayedAction* is a doppel's own SimNpc.PlayAction, edge-triggered on
+// its seq; its target resolves by enemy NetId or role, its ground point travels as a position.
 public sealed record RoleState(
     PartyRole Role, bool Filled, bool Dead, float X, float Y, float Z, float Rotation,
     IReadOnlyList<EnemyStatusState> Statuses,
-    uint CurrentHp, uint MaxHp);
+    uint CurrentHp, uint MaxHp,
+    uint PlayedActionId = 0, float PlayedActionAnimationLock = 0.6f, int PlayedActionSeq = 0,
+    float PlayedActionCastSeconds = 0f, float PlayedActionEffectDelay = 0f,
+    int? PlayedActionTargetEnemyNetId = null, PartyRole? PlayedActionTargetRole = null,
+    float? PlayedActionLocationX = null, float? PlayedActionLocationY = null, float? PlayedActionLocationZ = null,
+    bool PlayedActionHoldsStill = false);
 
 // LayoutId picks the SharedGroup the engine attaches; 0 requests the wrong one. EventId binds
 // the prop to the instance director as the real spawn packets do.
@@ -175,9 +191,11 @@ public sealed record EventObjectState(
     uint EventId = 0, uint EntityId = 0, byte TargetableStatus = 1, uint Arg2 = 0);
 
 // Full-state, so a dropped frame costs one tick of staleness, not a wrong reconstruction.
+// LimitBreakBars is the party's gauge, set only while the scenario keeps one
+// (IPartyLimitBreakScenario).
 public sealed record WorldSnapshotMessage(
     List<EnemyState> Enemies, List<TetherState> Tethers,
-    List<EventObjectState> EventObjects) : MpMessage, IHostOnlyMessage;
+    List<EventObjectState> EventObjects, float? LimitBreakBars = null) : MpMessage, IHostOnlyMessage;
 
 // Paced independently of WorldSnapshotMessage (see RelayClient's priority queue): role
 // positions are small and urgent, enemy data can be large.
@@ -247,9 +265,7 @@ public sealed record MapDirectorUpdateMessage(
 
 // Replay of world.SetWeather; scenarios use it mid-fight for lighting cues.
 public sealed record SetWeatherMessage(byte WeatherId, float Transition) : MpMessage, IHostOnlyMessage;
-
-// Replay of MapController.SetFogHold, a scenario's live fog toggle; null releases the hold.
-public sealed record SetFogHoldMessage(float? FogHold) : MpMessage, IHostOnlyMessage;
+public sealed record MapBattleTalkMessage(uint SpeakerNameId, uint TextId, uint DurationMs) : MpMessage, IHostOnlyMessage;
 
 // Replay of SimWorld.Announce: a scenario's own mid-run message to the party.
 public sealed record AnnouncementMessage(string Text) : MpMessage, IHostOnlyMessage;
@@ -340,6 +356,33 @@ public sealed record TopP5DeltaAiReplayStateMessage(
 
 public sealed record TopP5DeltaBeyondDefenseUpdateMessage(PartyRole BeyondDefenseTarget) : MpMessage, IScenarioMidRunUpdateMessage;
 
+// The subset TopP1ProgramLoopAi reads: the In Line order, each set's tower cardinal and shift, and
+// the first tether holders.
+public sealed record TopP1ProgramLoopAiReplayStateMessage(
+    PartyRole[] InLine, int[] TowerCardinals, int[] TowerShifts, PartyRole[] FirstTetherHolders) : MpMessage, IScenarioReplayStateMessage;
+
+public sealed record TopP3MonitorsAiReplayStateMessage(bool BossIsLeft, PartyRole[] Monitors, bool[] MonitorsAreLeft) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset TopP3IntermissionAi reads: the debuff order (four spreads, two stacks, two without)
+// and which hands come first.
+public sealed record TopP3IntermissionAiReplayStateMessage(PartyRole[] Debuffs, bool FirstHandsNorth) : MpMessage, IScenarioReplayStateMessage;
+
+public sealed record TopP3HelloWorldAiReplayStateMessage(
+    PartyRole[] Pairs, bool DefamationIsRed, bool[] Intercardinal, int[] RedStart) : MpMessage, IScenarioReplayStateMessage;
+
+public sealed record TopP4BlueScreenAiReplayStateMessage(PartyRole[] StackTargets) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset TopP6AlphaOmegaAi reads; each exaflare sweep travels as its start octant and turn.
+public sealed record TopP6AlphaOmegaAiReplayStateMessage(
+    bool[] ArrowsInFirst, int[] ExaflareStarts, int[] ExaflareTurns, PartyRole[] WildChargeTargets, PartyRole[] FlareTargets,
+    PartyRole StackTarget, PartyRole LeftDiveTank, PartyRole MeteorMiddleHealer, PartyRole FirstWaveCannonInvuln,
+    AnoMech.Scenarios.Top.P6AlphaOmega.P6Practice Practice = AnoMech.Scenarios.Top.P6AlphaOmega.P6Practice.WholePhase)
+    : MpMessage, IScenarioReplayStateMessage;
+
+// Host -> peers: a peer's seat owes a limit break now; the peer's debug bot presses it.
+public sealed record TopP6AlphaOmegaLimitBreakDueMessage(PartyRole Role, AnoMech.Scenarios.Top.P6AlphaOmega.LimitBreakKind Kind)
+    : MpMessage, IScenarioMidRunUpdateMessage;
+
 // The four boss placements plus the three positions the Ai's live tie-break RNG resolved on
 // the host, so a replayed Ai can't land on a different-but-valid safe spot.
 public sealed record UltimatePredationAiReplayStateMessage(
@@ -358,3 +401,8 @@ public sealed record PeerAppliedEnemyStatusMessage(Guid PeerId, List<int> EnemyN
 // Party counterpart, the peer's own role included: a peer's presses land only on its own
 // client, and the host decides who lives from the statuses on its own copies.
 public sealed record PeerAppliedRoleStatusMessage(Guid PeerId, List<PartyRole> Roles, ushort StatusId, float Duration) : MpMessage;
+
+// Peer -> host: the peer's own limit break landed, and where it was aimed (LimitBreakAim,
+// scenario-local). The host's scenario owns what it does.
+public sealed record PeerLimitBreakMessage(Guid PeerId, uint ActionId, float X = 0f, float Y = 0f, float Z = 0f, float Heading = 0f,
+    float? LocationX = null, float? LocationY = null, float? LocationZ = null) : MpMessage;

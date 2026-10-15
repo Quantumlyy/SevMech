@@ -19,6 +19,8 @@ internal sealed class MultiplayerUi
     internal static readonly Vector4 BadColor = new(1f, 0.4f, 0.4f, 1f);
     internal static readonly Vector4 MutedColor = new(0.6f, 0.6f, 0.6f, 1f);
     private static readonly Vector4 CodeColor = new(1f, 0.85f, 0.3f, 1f);
+    // Hidden until EmbeddedRelay is backed by a real server.
+    private static bool ShowEmbeddedServer => false;
     private const string LockedWhileRunning = "Locked while the fight is running -- changes apply to the next start.";
 
     private readonly Plugin plugin;
@@ -57,8 +59,7 @@ internal sealed class MultiplayerUi
         ImGui.TextUnformatted("Multiplayer");
         ImGui.Separator();
 
-        // TODO: hidden until EmbeddedRelay is backed by a real server.
-        if (false)
+        if (ShowEmbeddedServer)
         {
             if (ImGui.Button("Run embedded server"))
             {
@@ -193,7 +194,7 @@ internal sealed class MultiplayerUi
         var joining = !mp.IsHost && !mp.EverHeardFromHost;
         if (mp.IsHostConnecting || joining)
         {
-            ImGui.TextUnformatted(mp.IsHostConnecting ? "Starting session..." : $"Joining {mp.SessionCode}...");
+            ImGui.TextUnformatted(mp.IsHostConnecting ? "Starting session..." : $"Joining {mp.SessionCode}: {JoinProgress()}");
             ImGui.SameLine();
             if (StripButton("Cancel")) LeaveSession();
             return;
@@ -232,6 +233,15 @@ internal sealed class MultiplayerUi
             ImGui.SetTooltip(mp.IsHost
                 ? "End the session for everyone and go back to solo play."
                 : "Leave the session and go back to solo play. Mid-fight this ends the run for everyone.");
+    }
+
+    // Where the join is, and how long until it gives up.
+    private string JoinProgress()
+    {
+        var step = mp.IsReconnecting ? "can't reach the server, retrying"
+            : mp.IsWaitingForHost ? "waiting for the host to answer"
+            : "connecting to the server";
+        return $"{step}... ({mp.JoinElapsedSeconds:F0}/{MultiplayerManager.JoinDeadlineSeconds:F0}s)";
     }
 
     // One fixed height for every strip button, whatever styling each pushes.
@@ -305,7 +315,12 @@ internal sealed class MultiplayerUi
     // Warnings and errors, between the session strip and Start.
     internal void DrawSessionMessages(ScenarioSelection? selection)
     {
-        if (mp.IsHostConnecting || (!mp.IsHost && !mp.EverHeardFromHost)) return;
+        if (mp.IsHostConnecting) return;
+        if (!mp.IsHost && !mp.EverHeardFromHost)
+        {
+            if (mp.ConnectionError is { } joinError) ImGui.TextColored(WarnColor, $"Last attempt: {joinError}");
+            return;
+        }
 
         if (!mp.IsConnected)
         {
@@ -368,10 +383,12 @@ internal sealed class MultiplayerUi
     // Speed is deliberately absent: a session always runs at 1x.
     internal void DrawScenarioSettings(IScenario scenario)
     {
+        if (scenario.HasLocalSettings) scenario.DrawLocalSettings(mp.MyClaimedRole);
         if (!mp.IsHost)
         {
             var lines = mp.Session.ScenarioSettings;
-            ImGui.TextDisabled(lines.Count == 0 ? "Set by the host -- everything random." : "Set by the host:");
+            var setBy = scenario.HasLocalSettings ? "Other settings are handled by the host" : "Set by the host";
+            ImGui.TextDisabled(lines.Count == 0 ? $"{setBy} -- everything random." : $"{setBy}:");
             foreach (var line in lines) ImGui.BulletText(line);
             return;
         }

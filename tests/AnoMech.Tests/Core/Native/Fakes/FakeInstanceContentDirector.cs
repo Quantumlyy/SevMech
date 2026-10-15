@@ -15,4 +15,11 @@ internal sealed class FakeInstanceContentDirector(FakeZoneControl zone, SimTimel
 
     public void SetDirectorData(byte sequence, byte unknown, byte[] unionData) { }
     public void Commence() { }
+
+    public bool BattleTalk(uint speakerNameId, uint textId, uint durationMs)
+    {
+        if (zone.IsActive)
+            timeline.Add("battletalk", id: textId.ToString(), detail: $"speaker={speakerNameId} ms={durationMs}");
+        return zone.IsActive;
+    }
 }

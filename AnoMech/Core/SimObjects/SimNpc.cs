@@ -1,7 +1,10 @@
 using System;
+using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Motion;
 using AnoMech.Core.Native.Interfaces;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace AnoMech.Core.SimObjects;
 
@@ -83,17 +86,135 @@ public class SimNpc : SimCharacter
     // Which sub-meshes show, e.g. Omega-M's shield.
     public void SetModeAttributeFlags(byte value) => ActorControl.SetModeAttributeFlags(value);
 
+    // A party doppel's own action with the real packet shape: the bar, then the release. Here
+    // rather than on SimPartyNpc because the same seat is a SimNetworkPuppet on every peer, which
+    // has to play it too; SimEnemy drives its own richer cast instead. Effects (statuses, damage)
+    // stay the caller's job, exactly as for an enemy Cast.
+    //
+    // Sampled for peers; PlayedActionSeq is the edge trigger.
+    public uint PlayedActionId { get; private set; }
+    public float PlayedActionAnimationLock { get; private set; }
+    public float PlayedActionCastSeconds { get; private set; }
+    public float PlayedActionEffectDelay { get; private set; }
+    public SimCharacter? PlayedActionTarget { get; private set; }
+    public Vector3? PlayedActionLocation { get; private set; }
+    public bool PlayedActionHoldsStill { get; private set; }
+    public int PlayedActionSeq { get; private set; }
+
+    private (uint ActionId, float AnimationLock, SimCharacter? Target, Vector3? Location)? pendingActionEffect;
+    private float pendingActionEffectIn;
+    private float heldStillFor;
+
+    public override bool AnimationLock => PlayedActionHoldsStill && (pendingActionEffect != null || heldStillFor > 0f);
+
+    // castSeconds > 0 puts the bar up first. A player's cast resolves before its bar fills, so
+    // the effect lands effectDelay into it and the bar goes with it. A ground-targeted action goes
+    // to `location` instead of a target. holdStill roots the user through the bar and the
+    // animation lock, as a limit break does; a move ordered meanwhile waits for it.
+    public void PlayAction(uint actionId, float animationLock = 0.6f, float castSeconds = 0f, float effectDelay = 0f,
+        SimCharacter? target = null, Vector3? location = null, bool holdStill = false)
+    {
+        PlayedActionId = actionId;
+        PlayedActionAnimationLock = animationLock;
+        PlayedActionCastSeconds = castSeconds;
+        PlayedActionEffectDelay = effectDelay;
+        PlayedActionTarget = target;
+        PlayedActionLocation = location;
+        PlayedActionHoldsStill = holdStill;
+        PlayedActionSeq++;
+        heldStillFor = 0f;
+        if (location is { } at) Face(at);
+        else if (target != null) Face(target);
+        if (castSeconds <= 0f)
+        {
+            FireAction(actionId, animationLock, target, location);
+            return;
+        }
+        Casting.NativeCast(actionId, ActionType.Action, 0f, castSeconds, false, position: location,
+            targetId: location != null ? null : TargetOrSelf(target));
+        pendingActionEffect = (actionId, animationLock, target, location);
+        pendingActionEffectIn = effectDelay > 0f ? MathF.Min(effectDelay, castSeconds) : castSeconds;
+    }
+
+    private void FireAction(uint actionId, float animationLock, SimCharacter? target, Vector3? location)
+    {
+        if (PlayedActionHoldsStill) heldStillFor = animationLock;
+        if (location is { } at)
+        {
+            Casting.NativeActionEffect(actionId, animationLock, (ushort)actionId, 0, ActionType.Action, 0, position: at);
+            return;
+        }
+        var targetId = TargetOrSelf(target);
+        Casting.NativeActionEffect(actionId, animationLock, (ushort)actionId, 0, ActionType.Action, 0,
+            position: target != null && targetId != GameObjectId ? target.Position : null,
+            animationTargetId: targetId, targets: [new ActionEffectTarget(targetId)]);
+    }
+
+    // A target that left the world can't take the effect: ActionEffectHandler dereferences it.
+    private GameObjectId TargetOrSelf(SimCharacter? target)
+        => target is { IsActive: true, Proxy.Exists: true } ? target.GameObjectId : GameObjectId;
+
+    // Death or the run's end takes the cast with it, bar and all.
+    protected void AbortPlayedAction(CastCancelReason reason)
+    {
+        heldStillFor = 0f;
+        if (pendingActionEffect is not { } pending) return;
+        pendingActionEffect = null;
+        EndPlayedCast(pending.ActionId, reason);
+    }
+
+    private void EndPlayedCast(uint actionId, CastCancelReason reason)
+    {
+        if (Proxy is { IsCasting: true }) ActorControl.CancelCast(actionId, reason);
+    }
+
+    private void TickPendingAction(float deltaSeconds)
+    {
+        if (heldStillFor > 0f) heldStillFor = MathF.Max(0f, heldStillFor - deltaSeconds);
+        if (pendingActionEffect is not { } pending) return;
+        pendingActionEffectIn -= deltaSeconds;
+        if (pendingActionEffectIn > 0f) return;
+        pendingActionEffect = null;
+        FireAction(pending.ActionId, pending.AnimationLock, pending.Target, pending.Location);
+        EndPlayedCast(pending.ActionId, CastCancelReason.Silent);
+    }
+
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+        TickPendingAction(deltaSeconds);
         PacketSpawnFrames++;
         ProbePacketSpawn();
+    }
+
+    internal override void ClearRunState()
+    {
+        AbortPlayedAction(CastCancelReason.Cancelled);
+        ForgetPlayedAction();
+        base.ClearRunState();
+    }
+
+    // The party outlives a run, and a peer replays whatever seq the first snapshot of the next
+    // one carries.
+    private void ForgetPlayedAction()
+    {
+        PlayedActionId = 0;
+        PlayedActionAnimationLock = 0f;
+        PlayedActionCastSeconds = 0f;
+        PlayedActionEffectDelay = 0f;
+        PlayedActionTarget = null;
+        PlayedActionLocation = null;
+        PlayedActionHoldsStill = false;
+        PlayedActionSeq = 0;
     }
 
     public override void Despawn()
     {
         if (proxy == null) return;
         PacketSpawnPending = false;
+        pendingActionEffect = null;
+        heldStillFor = 0f;
+        ForgetPlayedAction();
         Casting.Despawn();
         base.Despawn();
         proxy.Despawn();

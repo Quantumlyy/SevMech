@@ -20,9 +20,21 @@ public sealed class LimitBreakGauge
 
     public int FilledBars => units / UnitsPerBar;
 
+    public float CurrentBars => units / (float)UnitsPerBar;
+
+    // A limit break as it resolves through the sim, and where it was aimed: the local player's
+    // own (LimitBreakHandler) or a bot's (SimParty.UseLimitBreak). A scenario reacts to what it
+    // did (a healer LB3's cleanse, where a caster LB3 came down).
+    public event Action<uint, LimitBreakAim>? Landed;
+
+    internal void Land(uint actionId, LimitBreakAim aim) => Landed?.Invoke(actionId, aim);
+
+    // An unchanged value sends nothing: a peer mirrors the host's gauge from every snapshot.
     public void Set(float bars)
     {
-        units = (ushort)(Math.Clamp(bars, 0f, Bars) * UnitsPerBar);
+        var next = (ushort)(Math.Clamp(bars, 0f, Bars) * UnitsPerBar);
+        if (saved != null && next == units) return;
+        units = next;
         saved ??= Natives.LimitBreak.Read();
         player()?.SetLimitBreakGauge(Bars, units, UnitsPerBar);
     }

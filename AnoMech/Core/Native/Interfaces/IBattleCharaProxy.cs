@@ -55,6 +55,8 @@ public interface IBattleCharaProxy
     // The engine advances it once ReceiveActorCast started the bar.
     float CurrentCastTime { get; }
     float TotalCastTime { get; }
+    // Opens the running bar part-filled.
+    void SetCurrentCastTime(float seconds);
 
     void ReceiveActorCast(ActorCastData cast);
 

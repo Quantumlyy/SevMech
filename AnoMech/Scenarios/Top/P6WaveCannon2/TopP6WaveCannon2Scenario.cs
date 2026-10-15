@@ -16,7 +16,7 @@ namespace AnoMech.Scenarios.Top.P6WaveCannon2;
 public sealed class TopP6WaveCannon2Scenario : IMultiplayerReplayable
 {
     public string Name => "Exasquares/WC2";
-    public IPhase Phase => TopZone.P6;
+    public IPhase Phase => TopZone.P6Continued;
     public bool SupportsSolo => true;
     public bool SupportsMultiplayer => true;
 

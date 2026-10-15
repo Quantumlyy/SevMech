@@ -68,7 +68,6 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
     
     public void Tick(float delta, float elapsed)
     {
-        holderDeaths.Check();
     }
     
     private void Run_PlayerTethers()
@@ -160,7 +159,7 @@ public sealed class TopP5SigmaScenario : IMultiplayerReplayable
         SimEnemy? omega_4000A68F = null;
         world.Events.Add(3.84f, () => omega_4000A68F = world.SpawnEnemy(new EnemySpawnConfig(BNpcBaseId: BNpcBaseId.BeetleHelper, NameId: BNpcNameId.OmegaBeetle, Level: 90, Targetable: false, EnemyList: EnemyListMode.OnlyWhenVisible, Visibility: SpawnVisibility.HiddenUntilShown, LayoutId: 0x91E489, Placement: state.NewNorthA.Apply(new Placement(new Vector3(0f, 0f, 20f), MathF.PI)))));
         world.Events.Add(19.93f, () => omega_4000A68F?.PlayActionTimeline(ActionTimelineId.WarpEnd));
-        world.Events.Add(27.63f, () => omega_4000A68F?.Cast(ActionId.ProgramLoop, animationLock: 3.1f));
+        world.Events.Add(27.63f, () => omega_4000A68F?.Cast(ActionId.SigmaProgramLoop, animationLock: 3.1f));
         world.Events.Add(30.75f, () => omega_4000A68F?.PlayActionTimeline(ActionTimelineId.WarpStart));
         world.Events.Add(44.87f, () => omega_4000A68F?.Despawn());
     }

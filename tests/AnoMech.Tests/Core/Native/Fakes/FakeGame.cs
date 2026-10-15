@@ -12,12 +12,13 @@ internal sealed class FakeGame
     public FakeZoneControl Zone { get; }
     public FakeMapEffects MapEffects { get; }
     public FakeUserActions UserActions { get; } = new();
-    public FakeLocalPlayerInput PlayerInput { get; } = new();
+    public FakeLocalPlayerInput PlayerInput { get; }
     public FakePlayerConditions PlayerConditions { get; } = new();
 
     private FakeGame()
     {
         BattleCharas = new FakeBattleCharas(Timeline);
+        PlayerInput = new FakeLocalPlayerInput(BattleCharas.Player);
         EventObjects = new FakeEventObjects(Timeline);
         MapEffects = new FakeMapEffects(Timeline);
         Zone = new FakeZoneControl(BattleCharas.Player, Timeline);

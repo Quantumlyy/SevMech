@@ -57,9 +57,18 @@ public sealed class SimCast : ISimObject
 
     public int CancelSeq { get; private set; }
 
-    // True while the cast bar is up or the release animation is still playing. A following boss
-    // roots itself while busy so the action animation finishes in place instead of sliding.
-    public bool IsBusy => IsCasting || remainingAnimationLock > 0f;
+    // How far into the running bar it opened: a cast the real fight began before the scenario's
+    // start. A peer replays the same head start.
+    public float ElapsedAtStart { get; private set; }
+
+    // True while the cast bar is up, through the release that follows it, and while the release
+    // animation is still playing. A following boss roots itself while busy so the action animation
+    // finishes in place instead of sliding.
+    public bool IsBusy => IsCasting || ReleasePending || remainingAnimationLock > 0f;
+
+    // Set by the action handler from the bar's start until its release goes out: the bar can drop
+    // before the release, and the caster holds still in between.
+    internal bool ReleasePending { get; set; }
 
     // Owned and ticked by its SimCharacter, never reaped by liveness.
     public bool IsActive => true;
@@ -83,7 +92,16 @@ public sealed class SimCast : ISimObject
         Rotation = castRotation;
         TargetLocation = position;
         TargetId = targetId;
+        ElapsedAtStart = 0f;
         CastSeq++;
+    }
+
+    // Opens the running bar part-filled; the caller shortens its own schedule to match.
+    public void SkipAhead(float seconds)
+    {
+        if (parent.Proxy is not { IsCasting: true } chara) return;
+        ElapsedAtStart = Math.Clamp(seconds, 0f, Total);
+        chara.SetCurrentCastTime(ElapsedAtStart);
     }
 
     // Returns the global sequence the targets' EffectResults name; 0 when nothing was sent.
@@ -106,6 +124,7 @@ public sealed class SimCast : ISimObject
     public void Cancel(CastCancelReason reason)
     {
         parent.ActorControl.CancelCast(ActionId, reason);
+        ReleasePending = false;
         CancelSeq++;
     }
 

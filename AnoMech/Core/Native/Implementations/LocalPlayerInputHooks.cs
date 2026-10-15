@@ -12,6 +12,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.System.Input;
 using AnoMech.Core.Native.Interfaces;
+using NativeLimitBreakController = FFXIVClientStructs.FFXIV.Client.Game.UI.LimitBreakController;
 
 namespace AnoMech.Core.Native.Implementations;
 
@@ -186,10 +187,89 @@ public sealed unsafe class LocalPlayerInputHooks : ILocalPlayerInput
         ScanAndLogActiveStatuses();
     }
 
+    // Outside a scenario the gauge is the player's own; the consumers gate on the run, not this.
+    private int? LimitBreakLevel(ActionType actionType, uint actionId)
+    {
+        if (actionType != ActionType.Action) return null;
+        if (Plugin.ObjectTable.LocalPlayer is not { } local) return null;
+        var lb = NativeLimitBreakController.Instance();
+        if (lb == null) return null;
+        var character = (Character*)local.Address;
+        for (byte i = 0; i < 3; i++)
+            if (lb->GetActionId(character, i) == actionId) return i;
+        return null;
+    }
+
+    // The client's own refusal reason is the only way to see why a press did nothing.
+    private void NoteLimitBreakPress(uint actionId, ulong targetId, int level, bool accepted, bool fired)
+    {
+        var name = Natives.Data.ActionName(actionId);
+        var job = Plugin.ObjectTable.LocalPlayer?.ClassJob.RowId;
+        if (!accepted)
+        {
+            var am = ActionManager.Instance();
+            var status = am == null ? 0u : am->GetActionStatus(ActionType.Action, actionId, targetId);
+            var reason = Plugin.DataManager.GetExcelSheet<Lumina.Excel.Sheets.LogMessage>()
+                .GetRowOrDefault(status)?.Text.ExtractText() ?? "";
+            Core.DiagnosticLog.Info($"[LimitBreak] {name} ({actionId}, job={job}) refused by the client -- status {status} \"{reason}\".");
+            return;
+        }
+        // A queued press comes back through UseAction (mode Queue) when the lock ends, and an
+        // area-targeted one through UseActionLocation once it is placed; only that call is the LB
+        // going off.
+        if (!fired)
+        {
+            Core.DiagnosticLog.Info($"[LimitBreak] {name} ({actionId}, LB{level + 1}, job={job}) queued or awaiting its ground target -- nothing happens until it fires.");
+            return;
+        }
+        Core.DiagnosticLog.Info($"[LimitBreak] {name} ({actionId}, LB{level + 1}, job={job}) fired by the client, target 0x{targetId:X}"
+            + $"{(LastLimitBreakPress.WorldLocation is { } at ? $", ground target ({at.X:F2},{at.Z:F2})" : "")}.");
+    }
+
+    public LimitBreakPress LastLimitBreakPress { get; private set; }
+
+    private void NoteLimitBreakAim(uint actionId, ulong targetId, Vector3* location)
+    {
+        var areaTargeted = Natives.Data.Action(actionId)?.TargetArea == true;
+        LastLimitBreakPress = new LimitBreakPress(targetId, areaTargeted && location != null ? *location : null);
+    }
+
+    public bool PressLimitBreakThree(ulong targetId, Vector3? worldLocation)
+    {
+        if (Plugin.ObjectTable.LocalPlayer is not { } local) return false;
+        var lb = NativeLimitBreakController.Instance();
+        var actions = ActionManager.Instance();
+        if (lb == null || actions == null) return false;
+        var actionId = lb->GetActionId((Character*)local.Address, 2);
+        if (actionId == 0) return false;
+        if (worldLocation is not { } at) return actions->UseAction(ActionType.Action, actionId, targetId);
+        return actions->UseActionLocation(ActionType.Action, actionId, 0xE0000000, &at);
+    }
+
+    // UseAction runs UseActionLocation inside itself for everything it executes; an area-targeted
+    // action is the exception, executed later from the client's targeting mode.
+    private int useActionDepth;
+
     private bool UseActionDetour(ActionManager* self, ActionType actionType, uint actionId, ulong targetId, uint extraParam, ActionManager.UseActionMode mode, uint comboRouteId, bool* outOptAreaTargeted)
     {
         RecordRecentAction(actionId, actionType);
-        var result = useActionHook.Original(self, actionType, actionId, targetId, extraParam, mode, comboRouteId, outOptAreaTargeted);
+        var limitBreakLevel = LimitBreakLevel(actionType, actionId);
+        // The UseActionLocation it runs, if it executes, names the resolved target instead.
+        if (limitBreakLevel != null) NoteLimitBreakAim(actionId, targetId, null);
+        // Advances only when the client actually sends the action, not when it queues it.
+        var sequence = self->LastUsedActionSequence;
+        bool result;
+        useActionDepth++;
+        try
+        {
+            result = useActionHook.Original(self, actionType, actionId, targetId, extraParam, mode, comboRouteId, outOptAreaTargeted);
+        }
+        finally
+        {
+            useActionDepth--;
+        }
+        if (limitBreakLevel is { } pressedLevel)
+            NoteLimitBreakPress(actionId, targetId, pressedLevel, result, fired: self->LastUsedActionSequence != sequence);
         if (result)
         {
             actionUsedSincePoll = true;
@@ -198,9 +278,21 @@ public sealed unsafe class LocalPlayerInputHooks : ILocalPlayerInput
         return result;
     }
 
+    // An area-targeted limit break (a caster's) fires here once its ground target is placed, with
+    // no UseAction around it, so the press bookkeeping runs here for it instead.
     private bool UseActionLocationDetour(ActionManager* self, ActionType actionType, uint actionId, ulong targetId, Vector3* location, uint extraParam, byte a7)
     {
+        var limitBreakLevel = LimitBreakLevel(actionType, actionId);
+        var fromTargetingMode = useActionDepth == 0;
+        var sequence = self->LastUsedActionSequence;
         var result = useActionLocationHook.Original(self, actionType, actionId, targetId, location, extraParam, a7);
+        if (limitBreakLevel is { } firedLevel)
+        {
+            // Nothing here queues: a true result is the action going off.
+            var fired = result || self->LastUsedActionSequence != sequence;
+            if (fired) NoteLimitBreakAim(actionId, targetId, location);
+            if (fromTargetingMode) NoteLimitBreakPress(actionId, targetId, firedLevel, result, fired);
+        }
         if (result)
         {
             actionUsedSincePoll = true;

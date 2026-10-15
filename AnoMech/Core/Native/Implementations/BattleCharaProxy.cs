@@ -204,6 +204,12 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
         }
     }
 
+    public void SetCurrentCastTime(float seconds)
+    {
+        var obj = Ptr;
+        if (obj != null) obj->CastInfo.CurrentCastTime = seconds;
+    }
+
     public float TotalCastTime
     {
         get

@@ -80,17 +80,16 @@ public sealed partial class MultiplayerManager
             DiagnosticLog.Info($"[Multiplayer] Host: broadcasting MapDirectorUpdate category=0x{category:X8}.");
             _ = relay.SendAsync(new MapDirectorUpdateMessage(category, arg1, arg2, arg3, arg4, arg5, arg6));
         };
+        Plugin.Game.World.Map.BattleTalked += (speakerNameId, textId, durationMs) =>
+        {
+            if (!IsHost || relay is not { IsConnected: true }) return;
+            _ = relay.SendAsync(new MapBattleTalkMessage(speakerNameId, textId, durationMs));
+        };
         Plugin.Game.World.Map.WeatherChanged += (weatherId, transition) =>
         {
             if (!IsHost || relay is not { IsConnected: true }) return;
             DiagnosticLog.Info($"[Multiplayer] Host: broadcasting SetWeather weatherId={weatherId} transition={transition}.");
             _ = relay.SendAsync(new SetWeatherMessage(weatherId, transition));
-        };
-        Plugin.Game.World.Map.FogHoldChanged += value =>
-        {
-            if (!IsHost || relay is not { IsConnected: true }) return;
-            DiagnosticLog.Info($"[Multiplayer] Host: broadcasting SetFogHold {(value is { } v ? v.ToString("F0") : "off")}.");
-            _ = relay.SendAsync(new SetFogHoldMessage(value));
         };
         Plugin.Game.World.Announced += text =>
         {
@@ -124,6 +123,17 @@ public sealed partial class MultiplayerManager
         StampEventClock();
         SubscribeGameEventsOnce();
         DrainPendingMessages();
+
+        // Before the IsConnected return below: the join may still be connecting or reconnecting.
+        if (IsJoinTimedOut)
+        {
+            var reason = JoinTimedOutReason();
+            DiagnosticLog.Warn($"[Multiplayer] Gave up joining session {SessionCode} after {JoinDeadlineMs / 1000}s: {reason}");
+            LeaveSession();
+            SessionEndReason = reason;
+            LobbyChanged?.Invoke();
+            return;
+        }
 
         // Before the IsConnected return below: this is the relay-down case.
         if (IsHost && disconnectedSinceMs is { } since && running && Plugin.Game.World.Map.IsInInstance
@@ -181,8 +191,10 @@ public sealed partial class MultiplayerManager
         else if (IsSessionNotFound)
         {
             DiagnosticLog.Warn($"[Multiplayer] No host responded within {NoHostFoundTimeoutMs / 1000}s of joining session {SessionCode} -- session not found.");
+            var reason = $"Reached the server, but no host answered in session {SessionCode}. "
+                         + "Check the code, or ask the host whether their session is still up.";
             LeaveSession();
-            SessionEndReason = "Session not found.";
+            SessionEndReason = reason;
             LobbyChanged?.Invoke();
             return;
         }

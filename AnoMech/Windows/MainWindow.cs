@@ -606,6 +606,8 @@ public unsafe class MainWindow : Window, IDisposable
                 multiplayerUi.DrawScenarioSettings(scenario);
             else
             {
+                if (scenario.HasLocalSettings)
+                    scenario.DrawLocalSettings(_roleOverride ?? PartyPresets.SkipRoleForJob(Plugin.ObjectTable.LocalPlayer?.ClassJob.RowId ?? 0));
                 scenario.DrawSettings();
                 scenario.DrawMultiplayerSettings();
             }
@@ -756,9 +758,11 @@ public unsafe class MainWindow : Window, IDisposable
     // Sessions start from the inn, like any scenario.
     private void DrawMultiplayerButton(Vector2 size = default)
     {
+#if DEBUG
         if (!ZoneControl.IsInInn() || Plugin.Game.World.Map.IsInInstance) return;
         ImGui.SameLine();
         if (ImGui.Button("Multiplayer", size)) _showMultiplayerSetup = true;
+#endif
     }
 
     private bool SoloSelected => _selectedScenario is { SupportsSolo: true } && _soloMode;

@@ -11,6 +11,7 @@ using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Geometry;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 using AnoMech.Network;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -63,6 +64,7 @@ public sealed partial class MultiplayerManager
             if (!ReferenceEquals(relay, source)) return;
             source.Dispose();
             relay = null;
+            Interlocked.Exchange(ref helloSentMs, 0);
             disconnectedSinceMs ??= Environment.TickCount64;
             if (failure != null)
             {
@@ -112,6 +114,11 @@ public sealed partial class MultiplayerManager
     // the real inn.
     private bool PeerInRun => !IsHost && running && peerEnteredInstance && Plugin.Game.World.Map.IsInInstance;
 
+    private bool IsOwnLimitBreak(Guid peerId, uint actionId)
+        => Session.Jobs.TryGetValue(peerId, out var job)
+           && Natives.Data.ClassJob(job) is { } row
+           && (row.LimitBreak1 == actionId || row.LimitBreak2 == actionId || row.LimitBreak3 == actionId);
+
     private static Guid? ClaimedPeerId(MpMessage message) => message switch
     {
         HelloMessage m => m.PeerId,
@@ -126,6 +133,7 @@ public sealed partial class MultiplayerManager
         LeaveRequestMessage m => m.PeerId,
         PeerAppliedEnemyStatusMessage m => m.PeerId,
         PeerAppliedRoleStatusMessage m => m.PeerId,
+        PeerLimitBreakMessage m => m.PeerId,
         _ => null,
     };
 
@@ -175,7 +183,7 @@ public sealed partial class MultiplayerManager
         if (!IsHost && message is LobbyStateMessage or StartMessage or WorldSnapshotMessage or RolesSnapshotMessage
             or RoleKilledMessage or KnockbackMessage or TeleportMessage or PushMessage or FollowMessage
             or EndMessage or PingMessage or PeerStatusMessage
-            or SetFogHoldMessage or AnnouncementMessage
+            or AnnouncementMessage
             or IScenarioReplayStateMessage or IScenarioMidRunUpdateMessage or KickMessage)
         {
             lastHostMessageMs = Environment.TickCount64;
@@ -269,6 +277,25 @@ public sealed partial class MultiplayerManager
                     member.AddStatus(applied.StatusId, duration);
                     DiagnosticLog.Info($"[Multiplayer] Host: applied {who}'s reported status {applied.StatusId} (duration={duration:F1}) to role {role}.");
                 }
+                break;
+            }
+            case PeerLimitBreakMessage limitBreak when IsHost:
+            {
+                var who = Session.NameOf(limitBreak.PeerId);
+                if (!running || Session.RoleOf(limitBreak.PeerId) is not { } limitBreakRole) break;
+                if (!IsOwnLimitBreak(limitBreak.PeerId, limitBreak.ActionId))
+                {
+                    DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported action {limitBreak.ActionId} as a limit break, which isn't one of its job's -- dropping.");
+                    break;
+                }
+                // An aim that fails the checks keeps the host's own view of the peer instead.
+                var puppet = Plugin.Game.World.Party.Get(limitBreakRole);
+                var origin = NetGuard.TryPosition(limitBreak.X, limitBreak.Y, limitBreak.Z, out var sent) ? sent : puppet?.Position ?? Vector3.Zero;
+                var aim = new LimitBreakAim(origin, NetGuard.Rotation(limitBreak.Heading),
+                    NetGuard.TryPosition(limitBreak.LocationX, limitBreak.LocationY, limitBreak.LocationZ));
+                DiagnosticLog.Info($"[Multiplayer] Host: {who} ({limitBreakRole})'s {Natives.Data.ActionName(limitBreak.ActionId)} landed, aimed from "
+                                    + $"({aim.Origin.X:F2},{aim.Origin.Z:F2}) heading {aim.Heading:F3}{(aim.Location is { } at ? $" at ({at.X:F2},{at.Z:F2})" : "")}.");
+                (Plugin.Game.ActiveScenario as IPartyLimitBreakScenario)?.OnPartyLimitBreak(limitBreakRole, limitBreak.ActionId, aim);
                 break;
             }
 
@@ -407,6 +434,16 @@ public sealed partial class MultiplayerManager
                     directorUpdate.Category, directorUpdate.Arg1, directorUpdate.Arg2,
                     directorUpdate.Arg3, directorUpdate.Arg4, directorUpdate.Arg5, directorUpdate.Arg6);
                 break;
+            case MapBattleTalkMessage battleTalk when PeerInRun:
+                if (!SimAssets.Allow(SimAssetKind.BattleTalk, battleTalk.TextId, "BattleTalk")) break;
+                if (Natives.Data.BNpcName(battleTalk.SpeakerNameId) == null)
+                {
+                    DiagnosticLog.Warn($"[Multiplayer] Dropped BattleTalk speaker={battleTalk.SpeakerNameId} -- no such BNpcName row.");
+                    break;
+                }
+                Plugin.Game.World.Map.BattleTalk(battleTalk.SpeakerNameId, battleTalk.TextId,
+                    (uint)NetGuard.Clamp(battleTalk.DurationMs, 0f, 30_000f));
+                break;
             case SetWeatherMessage weather when PeerInRun:
                 if (!WeatherSheet.HasRow(weather.WeatherId))
                 {
@@ -415,10 +452,6 @@ public sealed partial class MultiplayerManager
                 }
                 DiagnosticLog.Info($"[Multiplayer] Peer: applying SetWeather weatherId={weather.WeatherId} transition={weather.Transition}.");
                 Plugin.Game.World.Map.SetWeather(weather.WeatherId, NetGuard.Clamp(weather.Transition, 0f, 60f, 0.5f));
-                break;
-            case SetFogHoldMessage fog when PeerInRun:
-                DiagnosticLog.Info($"[Multiplayer] Peer: applying SetFogHold {(fog.FogHold is { } value ? value.ToString("F0") : "off")}.");
-                Plugin.Game.World.Map.SetFogHold(fog.FogHold is { } hold ? NetGuard.Clamp(hold, 0f, 100_000f) : null);
                 break;
             case AnnouncementMessage announcement when PeerInRun:
                 Plugin.Game.World.Announce(NetGuard.Clean(announcement.Text));

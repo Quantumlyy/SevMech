@@ -32,8 +32,9 @@ public static class EnemyActionEffects
     public static VulnSpec ProtectedBy(ushort statusId) => VulnSpec.None.ProtectedBy(statusId);
 
     // Survivors only. delayToEffectResult as EnemyActionContext.AddStatus: retail does this for some
-    // statuses (Viscous Aetheroplasm, HP Penalty, Damage Down, regens) and not others (vulns, Ruin,
-    // Doom, stuns), and no sheet column tells them apart.
+    // statuses (Damage Down, Sleep, Confused, HP Penalty, long resistance downs) and not others
+    // (vulns, Ruin, Doom, stuns, short resistance downs). It's chosen per status within an action;
+    // neither the packet nor any sheet column tells them apart, so read it off a replay.
     public static IEnemyActionEffect ApplyStatus(ushort statusId, float duration, bool delayToEffectResult = false, byte entryParam = 0)
         => new ApplyStatusEffect(statusId, duration, delayToEffectResult, entryParam);
 
@@ -87,6 +88,13 @@ public static class EnemyActionEffects
     public static IEnemyActionEffect OnHavingStatus(ushort statusId, IEnemyActionEffect effect)
         => new FilteredEffect(effect, (_, hits) => hits.Where(t => t.HasStatus(statusId)));
 
+    // `effect` applied to those hit who lack `statusId` when it runs.
+    public static IEnemyActionEffect OnLackingStatus(ushort statusId, IEnemyActionEffect effect)
+        => new FilteredEffect(effect, (_, hits) => hits.Where(t => !t.HasStatus(statusId)));
+
+    // Shown as a miss on everyone it reaches: an action that passes over them.
+    public static IEnemyActionEffect Dodge() => new DodgeEffect();
+
     // `effect` applied to the NPCs of `bnpcBaseId` the area caught instead of the party hits (UWU's
     // Razor Plumes, pushed by Super Cyclone).
     public static IEnemyActionEffect OnNpcs(uint bnpcBaseId, IEnemyActionEffect effect)
@@ -95,6 +103,28 @@ public static class EnemyActionEffects
     // `effect` applied to the `count` hit nearest the origin (the front of a wild charge).
     public static IEnemyActionEffect OnFront(int count, IEnemyActionEffect effect)
         => new FilteredEffect(effect, (_, hits) => hits.Take(count));
+
+    // A hit that lands for `amount` on the flytext and nothing else: an enrage's number.
+    public static IEnemyActionEffect ShowHit(uint amount) => new ShowHitEffect(amount);
+}
+
+internal sealed class ShowHitEffect(uint amount) : IEnemyActionEffect
+{
+    public void Apply(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits)
+    {
+        var kind = DamageKinds.FromAttackType(Natives.Data.Action(ctx.Action.ActionId)?.AttackType ?? 0);
+        foreach (var target in hits)
+            ctx.ShowDamage(target, amount, kind);
+    }
+}
+
+internal sealed class DodgeEffect : IEnemyActionEffect
+{
+    public void Apply(EnemyActionContext ctx, IReadOnlyList<SimCharacter> hits)
+    {
+        foreach (var target in hits)
+            ctx.Dodge(target);
+    }
 }
 
 internal sealed class DefeatCasterEffect : IEnemyActionEffect

@@ -56,6 +56,21 @@ public sealed partial class MultiplayerManager
         _ = relay.SendAsync(new PeerAppliedRoleStatusMessage(MyPeerId, roles.ToList(), statusId, duration));
     }
 
+    // The host's gauge would read full until this report reaches it; the local spend stands
+    // over the snapshots meanwhile.
+    private const long OwnLimitBreakGraceMs = 1500;
+    private long ownLimitBreakAtMs = long.MinValue / 2;
+
+    public void ReportLimitBreak(uint actionId, LimitBreakAim aim)
+    {
+        if (IsHost || relay is not { IsConnected: true } || !PeerInRun || Plugin.Game.ActiveScenario is not IPartyLimitBreakScenario) return;
+        ownLimitBreakAtMs = Environment.TickCount64;
+        DiagnosticLog.Info($"[Multiplayer] Peer: reporting limit break {actionId} to host, aimed from ({aim.Origin.X:F2},{aim.Origin.Z:F2}) "
+                            + $"heading {aim.Heading:F3}{(aim.Location is { } at ? $" at ({at.X:F2},{at.Z:F2})" : "")}.");
+        _ = relay.SendAsync(new PeerLimitBreakMessage(MyPeerId, actionId, aim.Origin.X, aim.Origin.Y, aim.Origin.Z, aim.Heading,
+            aim.Location?.X, aim.Location?.Y, aim.Location?.Z));
+    }
+
     // ---- Host: applying a peer's reported pose to their puppet -------------
 
     private void OnSelfPoseReceived(SelfPoseMessage msg)
@@ -81,6 +96,8 @@ public sealed partial class MultiplayerManager
         // peerEnemies still tracked them.
         if (!PeerInRun) return;
         var world = Plugin.Game.World;
+        if (snap.LimitBreakBars is { } bars && Environment.TickCount64 - ownLimitBreakAtMs > OwnLimitBreakGraceMs)
+            world.Party.LimitBreak.Set(NetGuard.Clamp(bars, 0f, 3f));
 
         var seenEnemyIds = new HashSet<int>();
         foreach (var e in NetGuard.Cap(snap.Enemies, NetGuard.MaxEnemiesPerSnapshot))
@@ -105,7 +122,8 @@ public sealed partial class MultiplayerManager
                     ModelCharaId: e.ModelCharaId != 0
                         && SimAssets.Allow(SimAssetKind.ModelChara, e.ModelCharaId, $"enemy NetId {e.NetId} model")
                         ? e.ModelCharaId : 0,
-                    e.InitialModeAttributeFlags);
+                    e.InitialModeAttributeFlags,
+                    MaxHealth: e.MaxHealth);
                 DiagnosticLog.Info($"[Multiplayer] Peer: first snapshot of enemy NetId {e.NetId} -- BNpcBase {e.BNpcBaseId}, pos ({e.X:F2},{e.Y:F2},{e.Z:F2}), rot {e.Rotation:F2}, visibility {e.Visibility}"
                     + $", cast {e.CastActionId}/seq {e.CastSeq}, effect {e.EffectActionId}/seq {e.EffectSeq} -- spawning local doppel.");
                 enemy = world.SpawnEnemy(config);
@@ -416,6 +434,24 @@ public sealed partial class MultiplayerManager
                 peerRoleLastLoggedStatuses[r.Role] = lastStatuses = new Dictionary<(ushort Id, int Ordinal), ushort>();
             LogStatusChanges($"Peer: role {r.Role} ({DescribeRoleOwner(r.Role, member)})",
                 roleStatuses.Select(s => (s.StatusId, s.Stacks, s.RemainingTime)).ToList(), lastStatuses);
+            // A doppel's own action animation (a bot's limit break). Our own seat is a SimPlayer,
+            // whose actions are its owner's real button presses.
+            if (!r.Dead && r.PlayedActionSeq > 0 && member is SimNpc actor
+                && (!peerRolePlayedActionSeq.TryGetValue(r.Role, out var lastPlayed) || lastPlayed != r.PlayedActionSeq))
+            {
+                peerRolePlayedActionSeq[r.Role] = r.PlayedActionSeq;
+                if (SimAssets.Allow(SimAssetKind.Action, r.PlayedActionId, $"role {r.Role} action"))
+                {
+                    var castSeconds = NetGuard.Clamp(r.PlayedActionCastSeconds, 0f, 30f);
+                    var target = ResolvePeerEnd(world, r.PlayedActionTargetEnemyNetId, r.PlayedActionTargetRole);
+                    var location = NetGuard.TryPosition(r.PlayedActionLocationX, r.PlayedActionLocationY, r.PlayedActionLocationZ);
+                    DiagnosticLog.Info($"[Multiplayer] Peer: role {r.Role} plays action {r.PlayedActionId} (seq {r.PlayedActionSeq}, cast {castSeconds:F2}s, "
+                        + $"target {(r.PlayedActionTargetEnemyNetId is { } netId ? $"enemy NetId {netId}" : r.PlayedActionTargetRole?.ToString() ?? "-")}"
+                        + $"{(location is { } at ? $", at ({at.X:F2},{at.Z:F2})" : "")}{(r.PlayedActionHoldsStill ? ", held still" : "")}).");
+                    actor.PlayAction(r.PlayedActionId, NetGuard.Clamp(r.PlayedActionAnimationLock, 0f, 60f, 0.6f),
+                        castSeconds, NetGuard.Clamp(r.PlayedActionEffectDelay, 0f, castSeconds), target, location, r.PlayedActionHoldsStill);
+                }
+            }
         }
     }
 

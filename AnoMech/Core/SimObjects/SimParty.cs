@@ -51,7 +51,7 @@ public sealed class SimParty : ISimObject
         }
         var actionId = bot.UseLimitBreak(level);
         if (actionId == 0) return false;
-        LimitBreakHandler.Resolve(this, bot, actionId);
+        LimitBreakHandler.Resolve(this, bot, actionId, new LimitBreakAim(bot.Position, bot.Rotation));
         return true;
     }
 
@@ -256,6 +256,7 @@ public sealed class SimParty : ISimObject
         ClearMarks();
         SetInCombat(false);
         LimitBreak.Restore();
+        Natives.PartyHud.SetDisplayOrder(null);
         foreach (var member in AllMembers()) member.ClearRunState();
         confusedChases.Clear();
     }

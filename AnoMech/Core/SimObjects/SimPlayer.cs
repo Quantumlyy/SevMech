@@ -1,3 +1,4 @@
+using System;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Geometry;
 using AnoMech.Core.Game.Motion;
@@ -17,12 +18,25 @@ public sealed class SimPlayer : SimCharacter, ISimPartyMember
 
     public PartyRole Role { get; set; }
 
+    public byte ClassJob => Proxy.ClassJob;
+
     // For stillness/movement mechanics: IsMoving = movement input, a jump, any action, or an
     // in-flight debug-bot MoveTo; IsActing also counts auto-attacks. Forced false while KO'd.
     public bool IsMoving { get; private set; }
     public bool IsActing { get; private set; }
 
     internal override IBattleCharaProxy Proxy => Natives.BattleCharas.LocalPlayer;
+
+    // The client's own prediction runs the whole cast; this only reads it.
+    public bool IsLimitBreaking => Proxy.IsCasting && LimitBreakHandler.IsLimitBreak(Proxy.CastActionId);
+
+    // Under the debug bot a limit break roots the character as it roots its player: through the
+    // cast, then for the animation its presser holds it.
+    private float heldStillFor;
+
+    public override bool AnimationLock => DebugBotControl.Enabled && !Dead && (IsLimitBreaking || heldStillFor > 0f);
+
+    public void HoldStill(float seconds) => heldStillFor = MathF.Max(heldStillFor, seconds);
 
     public void UseSprint(float duration)
     {
@@ -32,6 +46,7 @@ public sealed class SimPlayer : SimCharacter, ISimPartyMember
     public override void Tick(float deltaSeconds)
     {
         base.Tick(deltaSeconds);
+        if (heldStillFor > 0f) heldStillFor = MathF.Max(0f, heldStillFor - deltaSeconds);
         SyncStatusAffliction();
         SampleActivity();
     }
@@ -66,12 +81,20 @@ public sealed class SimPlayer : SimCharacter, ISimPartyMember
 
     public void OnKilled(bool byEnvironment)
     {
+        if (Proxy.IsCasting) ActorControl.CancelCast(Proxy.CastActionId, CastCancelReason.Interrupted);
         GoDown(byEnvironment);
+    }
+
+    internal override void ClearRunState()
+    {
+        base.ClearRunState();
+        heldStillFor = 0f;
     }
 
     public override void Despawn()
     {
         base.Despawn();
+        heldStillFor = 0f;
         Revive();
         if (Natives.PlayerConditions is { StatusAffliction: true } or { ControlAffliction: true })
             Natives.PlayerConditions.SetAfflictions(false, false);

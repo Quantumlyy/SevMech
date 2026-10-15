@@ -105,6 +105,9 @@ public abstract class SimCharacter : ISimObject, IPositioned
     public void MoveTo(Placement p) => MoveTo(p.Position);
     public void StopMoving() => Motion.Stop();
 
+    // A walk or forced move still under way.
+    public bool HasMoveInFlight => Motion.IsMoving;
+
     public void Intercept(SimTether? tether, float margin = 3f)
     {
         if (!MovementLocked) Motion.Intercept(tether, margin);
@@ -196,6 +199,9 @@ public abstract class SimCharacter : ISimObject, IPositioned
             // overrideStacks: stacks is the absolute target; otherwise it's a
             // relative delta (negative consumes stacks).
             int delta = overrideStacks ? stacks - status.Stacks : stacks;
+            // Reapplying refreshes a status; it gains stacks only up to the sheet's MaxStacks.
+            if (!overrideStacks && delta > 0 && Natives.Data.Status(statusId) is { } row)
+                delta = Math.Clamp(Math.Max((int)row.MaxStacks, 1) - status.Stacks, 0, delta);
             status.Reapply(duration, delta);
             if (status.Stacks == 0)
             {
@@ -292,6 +298,17 @@ public abstract class SimCharacter : ISimObject, IPositioned
     }
 
     public bool HasStatus(ushort statusId) => FindStatus(statusId) != null;
+
+    public uint Health => Proxy?.Health ?? 0;
+    public uint MaxHealth => Proxy?.MaxHealth ?? 0;
+
+    // The server's HP update, as the status list packet carries it. Nothing here deals damage: a
+    // scenario sets the bar where the fight has it (a boss met mid-phase, an add a limit break cut).
+    public void SetHealth(uint health)
+    {
+        if (Proxy is not { } chara) return;
+        SendStatusList(Math.Min(health, chara.MaxHealth), chara.Mana);
+    }
 
     // Sampled for peers; AddStatus is otherwise entirely local.
     public IReadOnlyList<(ushort StatusId, ushort Stacks, float RemainingTime)> ActiveStatusSnapshot =>

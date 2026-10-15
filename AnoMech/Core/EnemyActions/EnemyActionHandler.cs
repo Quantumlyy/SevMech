@@ -22,6 +22,7 @@ internal sealed class EnemyActionHandler(SimCharacter caster, SimCast cast, SimW
     };
 
     private EnemyActionCast? casting;
+    private EnemyActionCast? holdingForRelease;
 
     public EnemyActionCast Start(EnemyAction action, CastTarget at, byte animationVariation)
     {
@@ -37,6 +38,7 @@ internal sealed class EnemyActionHandler(SimCharacter caster, SimCast cast, SimW
         var sheetRow = Natives.Data.Action(id);
         var sheetCastTime = sheetRow?.CastSeconds ?? 0f;
         var castTime = action.Cast.CastSecondsOverride ?? MathF.Max(0f, sheetCastTime - CastSpec.ActionEffectOffset);
+        var elapsed = Math.Clamp(action.Cast.ElapsedAtStart, 0f, castTime);
         // Only a ground-target action goes out without a target; any other action aimed at a point
         // still targets its caster, or the client never applies the effect (no flytext until despawn).
         GameObjectId? castTarget = location is not null && sheetRow?.TargetArea == true ? null : (target ?? caster).GameObjectId;
@@ -48,21 +50,29 @@ internal sealed class EnemyActionHandler(SimCharacter caster, SimCast cast, SimW
             casting = handle;
             cast.NativeCast(id, ActionType.Action, action.Cast.OmenDelay, castTime, interruptible: false,
                 rotation: CastRotation(action, target, location), position: location, targetId: castTarget);
+            if (elapsed > 0f) cast.SkipAhead(elapsed);
+            holdingForRelease = handle;
+            cast.ReleasePending = true;
         }
 
         // Resolve goes first: an instant action runs both inline, and the ActionEffect carries the hits.
         var delivery = new Delivery();
         if (action.Effects.Count > 0)
-            Schedule(castTime + action.Timing.ResolveSnapshotOffset, () =>
+            Schedule(castTime - elapsed + action.Timing.ResolveSnapshotOffset, () =>
             {
                 if (handle.IsCancelled) return;
                 if (casting == handle) casting = null;
                 Resolve(action, target, location, handle, delivery);
             });
-        Schedule(sheetCastTime, () =>
+        Schedule(sheetCastTime - elapsed, () =>
         {
             if (handle.IsCancelled) return;
             if (casting == handle) casting = null;
+            if (holdingForRelease == handle)
+            {
+                holdingForRelease = null;
+                cast.ReleasePending = false;
+            }
             Release(action, target, location, castTarget, animationVariation, delivery);
         });
         return handle;
@@ -72,6 +82,7 @@ internal sealed class EnemyActionHandler(SimCharacter caster, SimCast cast, SimW
     {
         if (casting is not { } handle) return;
         casting = null;
+        holdingForRelease = null;
         handle.Cancelled();
         cast.Cancel(reason);
     }

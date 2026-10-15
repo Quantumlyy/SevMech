@@ -35,6 +35,10 @@ public sealed record CastSpec
     // Only for the rare case where the in-game cast time differs from the sheet's.
     public float? CastSecondsOverride { get; init; }
 
+    // For a cast the real fight began this long before the scenario starts: the bar opens
+    // part-filled and the action lands that much sooner.
+    public float ElapsedAtStart { get; init; }
+
     // Turns the omen, the animation and the area from the caster's facing, in radians.
     public float Rotation { get; init; }
 

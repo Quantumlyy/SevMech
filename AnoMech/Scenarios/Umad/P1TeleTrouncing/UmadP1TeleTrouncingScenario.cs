@@ -125,7 +125,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         party = world.Party;
         state = new UmadP1TeleTrouncingState(world.Rng, settingsWindow.Overrides);
         LastState = state;
-        hazeHoldApplied = true;   // what InstanceSession.ApplyPhase just applied from the phase
 
         // Game.Catalog reuses one instance across runs; a stopped run's arrow wrappers still
         // hold their frozen positions, and TickArrows would bind someone against them on the
@@ -159,6 +158,7 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
                 BNpcBaseId: Constants.BNpcBaseId.KefkaP3, NameId: Constants.BNpcNameId.Kefka, Level: 100,
                 Targetable: true, EnemyList: EnemyListMode.Always, Visibility: SpawnVisibility.Visible,
                 Placement: new Placement(Vector3.Zero, -float.Pi), LayoutId: Constants.BNpcLayoutId.KefkaP3));
+            kefka?.KeepFacing(party.Get(PartyRole.MainTank));
             for (var i = 0; i < helpers.Length; i++) helpers[i] = SpawnHelper();
             // Applied here rather than resolved from the earlier, unmodeled wave, so the
             // duration is what's left until the real expiry (0.09s before the stack lands).
@@ -277,7 +277,7 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
 
         // Auto-attacks on the main tank at their real beats: none through the Confused window
         // and Mystery Magic.
-        foreach (var at in new[] { 0.83f, 8.90f, 11.93f, 19.01f, 44.48f, 48.62f, 51.65f })
+        foreach (var at in new[] { 8.90f, 11.93f, 19.01f, 44.48f, 48.62f, 51.65f })
             world.Events.Add(at, () => kefka?.Cast(UmadActions.AutoAttack, party.Get(PartyRole.MainTank), animationVariation: 1));
 
         // [7.34s] Every role gets its 2 debuffs (the EffectResult lands 0.76s after the resolve).
@@ -301,7 +301,11 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
 
         // [20.80s] Unnamed 2.7s cast: 0.8s after it resolves, Kefka's model state goes to 4 until
         // Unk2BossP1 resolves.
-        world.Events.Add(20.80f, () => kefka?.Cast(Constants.ActionId.KefkaRest, animationLock: 2.1f));
+        world.Events.Add(20.80f, () =>
+        {
+            kefka?.KeepFacing(null);
+            kefka?.Cast(Constants.ActionId.KefkaRest, animationLock: 2.1f);
+        });
 
         // [22.78s] Confetti-3's stack hit, the one beat that drifts pull to pull (timed off the
         // earlier Double-trouble Trap cast). Pushes the ~3 players within 6y of each holder 14y
@@ -332,6 +336,9 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
         world.Events.Add(ConfusedChaseStart, () => world.Obstacles.Clear());
 
         // [36.41s] Mystery Magic (4.7s bar), resolves 41.40s with the thunder lines.
+            
+            
+        world.Events.Add(36, () => kefka?.KeepFacing(party.Get(PartyRole.MainTank)));
         world.Events.Add(36.41f, () => kefka?.Cast(Constants.ActionId.MysteryMagic, animationLock: 3.1f));
 
         // Mystery Magic's three resolves land in a ~1s window (thunder 41.40s, gaze 41.49s, fire
@@ -456,16 +463,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
     public void Tick(float delta, float elapsed)
     {
         TickArrows(delta, elapsed);
-        TickHazeHold();
-        FaceMainTank();
-    }
-
-    // The real Kefka turns with his enmity target the whole phase (every cast packet's rotation
-    // is the main tank's bearing).
-    private void FaceMainTank()
-    {
-        if (kefka is not { } boss || party.Get(PartyRole.MainTank) is not { } tank || !tank.IsAlive()) return;
-        boss.Face(tank.Position);
     }
 
     private SimEnemy? SpawnHelper()
@@ -502,17 +499,6 @@ public sealed class UmadP1TeleTrouncingScenario : IMultiplayerReplayable
             helpers[i]?.Despawn();
             helpers[i] = null;
         }
-    }
-
-    private bool hazeHoldApplied;
-
-    private void TickHazeHold()
-    {
-        var want = settingsWindow.Overrides.HoldHaze;
-        if (want == hazeHoldApplied) return;
-        hazeHoldApplied = want;
-        world.Map.SetFogHold(want ? UmadZone.P1Haze : null);
-        DiagnosticLog.Info($"[UmadP1TeleTrouncing] P1 haze hold {(want ? "on" : "off")} (settings window).");
     }
 
     private void TickArrows(float delta, float elapsed)

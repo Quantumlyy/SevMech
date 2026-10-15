@@ -1,9 +1,15 @@
 using System.Collections.Generic;
 using System.Linq;
+using AnoMech.Scenarios.Top.P1ProgramLoop;
 using AnoMech.Scenarios.Top.P2PartySynergy;
+using AnoMech.Scenarios.Top.P3HelloWorld;
+using AnoMech.Scenarios.Top.P3Intermission;
+using AnoMech.Scenarios.Top.P3Monitors;
+using AnoMech.Scenarios.Top.P4BlueScreen;
 using AnoMech.Scenarios.Top.P5Delta;
 using AnoMech.Scenarios.Top.P5Omega;
 using AnoMech.Scenarios.Top.P5Sigma;
+using AnoMech.Scenarios.Top.P6AlphaOmega;
 using AnoMech.Scenarios.Top.P6WaveCannon2;
 using AnoMech.Scenarios.Ucob.P5Exaflares;
 using AnoMech.Scenarios.Umad;
@@ -69,13 +75,19 @@ public sealed class ScenarioCatalog
         new UmadP3BlackHoleScenario(),
         new UmadP4KefkaSaysScenario(),
         new UmadP5FloodScenario(),
-        new UmadP5ExaflaresScenario(),
         new UmadP5CelestriadScenario(),
+        new UmadP5ExaflaresScenario(),
         new UmadP5ForsakenNull(),
+        new TopP1ProgramLoopScenario(),
         new TopP2PartySynergyScenario(),
+        new TopP3IntermissionScenario(),
+        new TopP3HelloWorldScenario(),
+        new TopP3MonitorsScenario(),
+        new TopP4BlueScreenScenario(),
         new TopP5DeltaScenario(),
         new TopP5SigmaScenario(),
         new TopP5OmegaScenario(),
+        new TopP6AlphaOmegaScenario(),
         new TopP6WaveCannon2Scenario(),
         new UltimatePredationScenario(),
         new UltimateSuppressionScenario(),
