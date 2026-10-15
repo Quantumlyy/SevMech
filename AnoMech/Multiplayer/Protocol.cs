@@ -58,6 +58,8 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP3IntermissionAiReplayStateMessage), "topP3IntermissionAiReplayState")]
 [JsonDerivedType(typeof(TopP3HelloWorldAiReplayStateMessage), "topP3HelloWorldAiReplayState")]
 [JsonDerivedType(typeof(TopP4BlueScreenAiReplayStateMessage), "topP4BlueScreenAiReplayState")]
+[JsonDerivedType(typeof(TopP6AlphaOmegaAiReplayStateMessage), "topP6AlphaOmegaAiReplayState")]
+[JsonDerivedType(typeof(TopP6AlphaOmegaLimitBreakDueMessage), "topP6AlphaOmegaLimitBreakDue")]
 [JsonDerivedType(typeof(UmadP3LimitCutAiReplayStateMessage), "umadP3LimitCutAiReplayState")]
 [JsonDerivedType(typeof(UmadP1TeleTrouncingAiReplayStateMessage), "umadP1TeleTrouncingAiReplayState")]
 [JsonDerivedType(typeof(UmadP5FloodAiReplayStateMessage), "umadP5FloodAiReplayState")]
@@ -367,6 +369,17 @@ public sealed record TopP3HelloWorldAiReplayStateMessage(
     PartyRole[] Pairs, bool DefamationIsRed, bool[] Intercardinal, int[] RedStart) : MpMessage, IScenarioReplayStateMessage;
 
 public sealed record TopP4BlueScreenAiReplayStateMessage(PartyRole[] StackTargets) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset TopP6AlphaOmegaAi reads; each exaflare sweep travels as its start octant and turn.
+public sealed record TopP6AlphaOmegaAiReplayStateMessage(
+    bool[] ArrowsInFirst, int[] ExaflareStarts, int[] ExaflareTurns, PartyRole[] WildChargeTargets, PartyRole[] FlareTargets,
+    PartyRole StackTarget, PartyRole LeftDiveTank, PartyRole MeteorMiddleHealer, PartyRole FirstWaveCannonInvuln,
+    AnoMech.Scenarios.Top.P6AlphaOmega.P6Practice Practice = AnoMech.Scenarios.Top.P6AlphaOmega.P6Practice.WholePhase)
+    : MpMessage, IScenarioReplayStateMessage;
+
+// Host -> peers: a peer's seat owes a limit break now; the peer's debug bot presses it.
+public sealed record TopP6AlphaOmegaLimitBreakDueMessage(PartyRole Role, AnoMech.Scenarios.Top.P6AlphaOmega.LimitBreakKind Kind)
+    : MpMessage, IScenarioMidRunUpdateMessage;
 
 // The four boss placements plus the three positions the Ai's live tie-break RNG resolved on
 // the host, so a replayed Ai can't land on a different-but-valid safe spot.
