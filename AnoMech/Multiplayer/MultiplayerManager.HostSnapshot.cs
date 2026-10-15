@@ -186,7 +186,8 @@ public sealed partial class MultiplayerManager
                 eventId, eoConfig.EntityId, eoConfig.TargetableStatus, eoConfig.Arg2));
         }
 
-        return relay!.SendAsync(new WorldSnapshotMessage(enemies, tethers, eventObjects));
+        var limitBreakBars = Plugin.Game.ActiveScenario is IPartyLimitBreakScenario ? world.Party.LimitBreak.CurrentBars : (float?)null;
+        return relay!.SendAsync(new WorldSnapshotMessage(enemies, tethers, eventObjects, limitBreakBars));
     }
 
     private Task? pendingRolesSend;
@@ -219,9 +220,16 @@ public sealed partial class MultiplayerManager
             {
                 hostRoleLastLoggedStatuses.Remove(role);
             }
+            var actor = member as SimNpc;
+            var (playedTargetEnemy, playedTargetRole) = ResolveEnd(world, actor?.PlayedActionTarget);
             roles.Add(new RoleState(role, member != null, dead,
                 member?.Position.X ?? 0f, member?.Position.Y ?? 0f, member?.Position.Z ?? 0f, member?.Rotation ?? 0f,
-                statuses, currentHp, maxHp));
+                statuses, currentHp, maxHp,
+                actor?.PlayedActionId ?? 0, actor?.PlayedActionAnimationLock ?? 0.6f, actor?.PlayedActionSeq ?? 0,
+                actor?.PlayedActionCastSeconds ?? 0f, actor?.PlayedActionEffectDelay ?? 0f,
+                playedTargetEnemy, playedTargetRole,
+                actor?.PlayedActionLocation?.X, actor?.PlayedActionLocation?.Y, actor?.PlayedActionLocation?.Z,
+                actor?.PlayedActionHoldsStill ?? false));
         }
         return relay!.SendAsync(new RolesSnapshotMessage(roles));
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using AnoMech.Core.Game;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios.Top;
@@ -67,6 +68,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP5OmegaHelloWorld2UpdateMessage), "topP5OmegaHelloWorld2Update")]
 [JsonDerivedType(typeof(PeerAppliedEnemyStatusMessage), "peerAppliedEnemyStatus")]
 [JsonDerivedType(typeof(PeerAppliedRoleStatusMessage), "peerAppliedRoleStatus")]
+[JsonDerivedType(typeof(PeerLimitBreakMessage), "peerLimitBreak")]
 [JsonDerivedType(typeof(KickMessage), "kick")]
 public abstract record MpMessage;
 
@@ -166,11 +168,17 @@ public sealed record EnemyState(
 public sealed record TetherState(int NetId, ushort TetherId, int? AEnemyNetId, PartyRole? ARole, int? BEnemyNetId, PartyRole? BRole);
 
 // Host-authoritative even for a peer's own role: a peer runs no scenario logic, so statuses
-// and HP come from here.
+// and HP come from here. PlayedAction* is a doppel's own SimNpc.PlayAction, edge-triggered on
+// its seq; its target resolves by enemy NetId or role, its ground point travels as a position.
 public sealed record RoleState(
     PartyRole Role, bool Filled, bool Dead, float X, float Y, float Z, float Rotation,
     IReadOnlyList<EnemyStatusState> Statuses,
-    uint CurrentHp, uint MaxHp);
+    uint CurrentHp, uint MaxHp,
+    uint PlayedActionId = 0, float PlayedActionAnimationLock = 0.6f, int PlayedActionSeq = 0,
+    float PlayedActionCastSeconds = 0f, float PlayedActionEffectDelay = 0f,
+    int? PlayedActionTargetEnemyNetId = null, PartyRole? PlayedActionTargetRole = null,
+    float? PlayedActionLocationX = null, float? PlayedActionLocationY = null, float? PlayedActionLocationZ = null,
+    bool PlayedActionHoldsStill = false);
 
 // LayoutId picks the SharedGroup the engine attaches; 0 requests the wrong one. EventId binds
 // the prop to the instance director as the real spawn packets do.
@@ -180,9 +188,11 @@ public sealed record EventObjectState(
     uint EventId = 0, uint EntityId = 0, byte TargetableStatus = 1, uint Arg2 = 0);
 
 // Full-state, so a dropped frame costs one tick of staleness, not a wrong reconstruction.
+// LimitBreakBars is the party's gauge, set only while the scenario keeps one
+// (IPartyLimitBreakScenario).
 public sealed record WorldSnapshotMessage(
     List<EnemyState> Enemies, List<TetherState> Tethers,
-    List<EventObjectState> EventObjects) : MpMessage, IHostOnlyMessage;
+    List<EventObjectState> EventObjects, float? LimitBreakBars = null) : MpMessage, IHostOnlyMessage;
 
 // Paced independently of WorldSnapshotMessage (see RelayClient's priority queue): role
 // positions are small and urgent, enemy data can be large.
@@ -376,3 +386,8 @@ public sealed record PeerAppliedEnemyStatusMessage(Guid PeerId, List<int> EnemyN
 // Party counterpart, the peer's own role included: a peer's presses land only on its own
 // client, and the host decides who lives from the statuses on its own copies.
 public sealed record PeerAppliedRoleStatusMessage(Guid PeerId, List<PartyRole> Roles, ushort StatusId, float Duration) : MpMessage;
+
+// Peer -> host: the peer's own limit break landed, and where it was aimed (LimitBreakAim,
+// scenario-local). The host's scenario owns what it does.
+public sealed record PeerLimitBreakMessage(Guid PeerId, uint ActionId, float X = 0f, float Y = 0f, float Z = 0f, float Heading = 0f,
+    float? LocationX = null, float? LocationY = null, float? LocationZ = null) : MpMessage;
