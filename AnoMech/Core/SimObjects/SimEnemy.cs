@@ -65,7 +65,10 @@ public record struct EnemySpawnConfig(
     bool Engaged = true,
     // Retail's layout instance for the BNpc, in the territory's own layout. The Razor Plume's idle
     // visual needs this or the director EventId BattleCharas sends; UNVERIFIED which.
-    uint LayoutId = 0);
+    uint LayoutId = 0,
+    // False for an ally the duty spawns (FRU's Gaia and Ryne): it sends battalion 0, as retail
+    // does, so the client treats it as friendly.
+    bool IsHostile = true);
 
 public sealed class SimEnemy : SimNpc
 {
@@ -384,6 +387,9 @@ public sealed class SimEnemy : SimNpc
     public void CancelCast(CastCancelReason reason) => actions.CancelCast(reason);
 
     public override bool AnimationLock => Casting.IsBusy;
+
+    // Stays turned toward the target, holding still while casting or animation-locked; null releases it.
+    public void KeepFacing(SimCharacter? target) => motion.KeepFacing(target);
 
     public const float DefaultCorpseFadeDelay = 8f;
     private const float CorpseFadeDuration = 1.7f;

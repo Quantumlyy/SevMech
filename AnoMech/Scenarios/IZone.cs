@@ -8,26 +8,19 @@ using AnoMech.Core.SimObjects;
 namespace AnoMech.Scenarios;
 
 // A raid territory: the identity every scenario inside it shares. Authored bottom-up —
-// scenarios point at their IPhase, phases point here — and Game derives the downward
+// scenarios point at their IPhase, phases point here — and ScenarioCatalog derives the downward
 // zone -> phase -> scenario view for the menu.
 public interface IZone
 {
     string Name { get; }                                    // canonical duty name
     uint TerritoryId { get; }
     Vector3 Origin { get; }
-    byte Level => 0;
-    ushort ItemLevel => 0;
 
     // At least one; [0] is the default.
     IReadOnlyList<WaymarkLayout> WaymarkPresets { get; }
 
     // From the server's zone-in spawn packet for the EObj. The player spawns at its Position.
-    // Null = spawn at InstanceSession.DefaultPlayerSpawnLocal, no spawn wall opened.
-    EntranceBarrier? EntranceBarrier => null;
-
-    // For a platform arena: the scenario-local Y below which the player has fallen off. The whole
-    // stay puts them straight back at the centre, and a running scenario also kills them.
-    float? FallFloor => null;
+    EntranceBarrier EntranceBarrier { get; }
 
     // Resting state per MapEffect slot, copied from the server's MapEffect snapshot packet in a
     // replay (the same at zone-in and every wipe reset). Sent at the start of every scenario,
