@@ -20,7 +20,14 @@ public sealed class TopZone : IZone
     // Starts on P3's last moments, so it opens in P3's sky and arena, and P3's track plays on.
     public static readonly Phase P4 = new(Instance, "P4", 79, BgmId.TopP3);
     public static readonly Phase P5 = new(Instance, "P5", 174, BgmId.TopP5);
-    public static readonly Phase P6 = new(Instance, "P6", 175, BgmId.TopP6);
+    // The arena edge is down through P5's last cutscene; Alpha Omega raises it as it begins.
+    public static readonly Phase P6 = new(Instance, "P6", 175, BgmId.TopP6, init: RaiseArenaEdge,
+        arenaMapEffectOverrides: new Dictionary<byte, ushort> { [0x00] = 4 });
+    // A start past Alpha Omega's opening, with the arena edge already up.
+    public static readonly Phase P6Continued = new(Instance, "P6", 175, BgmId.TopP6);
+
+    // Cosmo Meteor's arena change. Nothing turns it back before the territory reloads.
+    public const byte CosmoMeteorArenaSlot = 0x15;
 
     public string Name => "The Omega Protocol";
     public uint TerritoryId => 1122;
@@ -35,4 +42,6 @@ public sealed class TopZone : IZone
         [1, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4];
 
     public void Run(SimWorld world) => world.EnforceArenaBoundary(Geometry.ArenaRadius);
+
+    private static void RaiseArenaEdge(SimWorld world) => world.Events.Add(0.04f, () => world.Map.AddEffect(0x00020001, 0x00));
 }

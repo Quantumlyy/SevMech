@@ -333,6 +333,142 @@ public static class TopActions
     // -- P4 Blue Screen --
 
     // -- P6 Alpha Omega --
+    // Cosmo Memory and Magic Number: only a tank LB3 or an invuln makes them survivable.
+    private static readonly VulnSpec SparedByTankLimitBreak = P6AlphaOmega.TopP6AlphaOmegaConstants.TankLimitBreakStatusIds
+        .Concat(P6AlphaOmega.TopP6AlphaOmegaConstants.InvulnStatusIds)
+        .Aggregate(VulnSpec.None, (spec, statusId) => spec.ProtectedBy(statusId));
+
+    public static readonly EnemyAction CosmoMemory = new(ActionId.CosmoMemory)
+    {
+        Cast = new() { AnimationLock = 4.1f },
+        Timing = new() { DamageDelay = 1.96f },
+        Effects = [Damage(SparedByTankLimitBreak, Lethal)],
+        DeathExplanation = "no tank limit break",
+    };
+
+    // Its debuff runs out without a healer LB3; the scenario watches for that.
+    public static readonly EnemyAction MagicNumber = new(ActionId.MagicNumber)
+    {
+        Cast = new() { AnimationLock = 5.1f },
+        Timing = new() { DamageDelay = 1.96f },
+        Effects = [Damage(SparedByTankLimitBreak, Lethal), ApplyStatus(StatusId.MagicNumber, 6f, delayToEffectResult: true)],
+        DeathExplanation = "no tank limit break",
+    };
+
+    // On the main target and the farthest player; a tank hit that needs no mitigation of its own.
+    public static readonly EnemyAction FlashGale = new(ActionId.FlashGale)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Effects = [Damage(MagicVulns, TankBuster), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+    };
+
+    public static readonly EnemyAction CosmoDive = new(ActionId.CosmoDive)
+    {
+        Cast = new() { AnimationLock = 9.1f },
+    };
+
+    // On the two nearest the boss; requiredMitigation is the share of the hit a human tank's own
+    // mitigation must cover.
+    public static EnemyAction CosmoDiveBuster(float requiredMitigation) => new(ActionId.CosmoDive_7BA7)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Effects = [Damage(MagicVulns, TankBuster.MinMit(requiredMitigation)), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+    };
+
+    public static readonly EnemyAction CosmoDiveStack = new(ActionId.CosmoDive_7BA8)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Effects = [Damage(MagicVulns, split: Stack(6)), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+    };
+
+    public static readonly EnemyAction UnlimitedWaveCannon = new(ActionId.UnlimitedWaveCannon)
+    {
+        Cast = new() { AnimationLock = 5.1f },
+    };
+
+    // The exaflares and the puddles take their hits with the effect, 0.29s after the bar, which is
+    // the margin the puddle run is cut to. An exaflare line's first explosion is the cast's own;
+    // the rest are UnlimitedWaveCannonExaflare.
+    public static readonly EnemyAction UnlimitedWaveCannonLine = new(ActionId.WaveCannon_7BAD)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { ResolveSnapshotOffset = 0.29f },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
+
+    public static readonly EnemyAction UnlimitedWaveCannonExaflare = new(ActionId.WaveCannon_7BAE)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
+
+    public static readonly EnemyAction UnlimitedWaveCannonPuddle = new(ActionId.WaveCannon_7BAF)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { ResolveSnapshotOffset = 0.29f },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
+
+    // The whole party lines up in it; the front two take it as a tankbuster, frontRequiredMitigation
+    // as CosmoDiveBuster's.
+    public static EnemyAction AlphaOmegaWildCharge(float frontRequiredMitigation) => new(ActionId.WaveCannonWildCharge)
+    {
+        Cast = new() { AnimationLock = 4.1f },
+        Timing = new() { DamageDelay = 0.78f },
+        Effects = [Damage(MagicVulns, split: WildCharge(front: 2, min: 8, frontHit: TankBuster.MinMit(frontRequiredMitigation)))],
+    };
+
+    public static readonly EnemyAction CosmoMeteor = new(ActionId.CosmoMeteor)
+    {
+        Cast = new() { AnimationLock = 3.1f },
+    };
+
+    public static readonly EnemyAction CosmoMeteorPuddle = new(ActionId.CosmoMeteorPuddle)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects = [Damage(MagicVulns, Lethal)],
+    };
+
+    public static readonly EnemyAction CosmoMeteorSpread = new(ActionId.CosmoMeteorSpread)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Effects = [Damage(MagicVulns), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+    };
+
+    public static readonly EnemyAction CosmoMeteorStack = new(ActionId.CosmoMeteorStack)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Effects = [Damage(MagicVulns, split: Stack(5))],
+    };
+
+    // Reaches the whole arena, falling off with distance; its holder takes nothing from it.
+    public static readonly EnemyAction CosmoMeteorFlare = new(ActionId.CosmoMeteorFlare)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.62f },
+        Effects = [OnOthers(Damage(MagicVulns, split: Falloff(P6AlphaOmega.TopP6AlphaOmegaConstants.FlareLethalRange)))],
+    };
+
+    public static readonly EnemyAction CosmoMeteorEnrage = new(ActionId.CosmoMeteorEnrage)
+    {
+        Cast = new() { AnimationLock = 1.1f },
+        Effects = [Damage(MagicVulns, Lethal)],
+        DeathExplanation = "a comet or meteor left standing",
+    };
+
+    // Reports 9,999,999 on everyone; the result that would carry it out comes long after the boss
+    // has died.
+    public static readonly EnemyAction RunMi = new(ActionId.RunMi)
+    {
+        Cast = new() { AnimationLock = 16.1f },
+        Timing = new() { DamageDelay = 0.3f },
+        Effects = [ShowHit(9_999_999)],
+    };
 
     // -- P2 Party Synergy --
     public static readonly EnemyAction Spotlight = new(ActionId.Spotlight)
