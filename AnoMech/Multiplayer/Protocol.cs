@@ -52,6 +52,11 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(TopP5OmegaAiReplayStateMessage), "topP5OmegaAiReplayState")]
 [JsonDerivedType(typeof(UltimatePredationAiReplayStateMessage), "ultimatePredationAiReplayState")]
 [JsonDerivedType(typeof(TopP5DeltaAiReplayStateMessage), "topP5DeltaAiReplayState")]
+[JsonDerivedType(typeof(TopP1ProgramLoopAiReplayStateMessage), "topP1ProgramLoopAiReplayState")]
+[JsonDerivedType(typeof(TopP3MonitorsAiReplayStateMessage), "topP3MonitorsAiReplayState")]
+[JsonDerivedType(typeof(TopP3IntermissionAiReplayStateMessage), "topP3IntermissionAiReplayState")]
+[JsonDerivedType(typeof(TopP3HelloWorldAiReplayStateMessage), "topP3HelloWorldAiReplayState")]
+[JsonDerivedType(typeof(TopP4BlueScreenAiReplayStateMessage), "topP4BlueScreenAiReplayState")]
 [JsonDerivedType(typeof(UmadP3LimitCutAiReplayStateMessage), "umadP3LimitCutAiReplayState")]
 [JsonDerivedType(typeof(UmadP1TeleTrouncingAiReplayStateMessage), "umadP1TeleTrouncingAiReplayState")]
 [JsonDerivedType(typeof(UmadP5FloodAiReplayStateMessage), "umadP5FloodAiReplayState")]
@@ -335,6 +340,22 @@ public sealed record TopP5DeltaAiReplayStateMessage(
     PartyRole FarWorldRole, PartyRole NearWorldRole, int FarWorldTetherIndex) : MpMessage, IScenarioReplayStateMessage;
 
 public sealed record TopP5DeltaBeyondDefenseUpdateMessage(PartyRole BeyondDefenseTarget) : MpMessage, IScenarioMidRunUpdateMessage;
+
+// The subset TopP1ProgramLoopAi reads: the In Line order, each set's tower cardinal and shift, and
+// the first tether holders.
+public sealed record TopP1ProgramLoopAiReplayStateMessage(
+    PartyRole[] InLine, int[] TowerCardinals, int[] TowerShifts, PartyRole[] FirstTetherHolders) : MpMessage, IScenarioReplayStateMessage;
+
+public sealed record TopP3MonitorsAiReplayStateMessage(bool BossIsLeft, PartyRole[] Monitors, bool[] MonitorsAreLeft) : MpMessage, IScenarioReplayStateMessage;
+
+// The subset TopP3IntermissionAi reads: the debuff order (four spreads, two stacks, two without)
+// and which hands come first.
+public sealed record TopP3IntermissionAiReplayStateMessage(PartyRole[] Debuffs, bool FirstHandsNorth) : MpMessage, IScenarioReplayStateMessage;
+
+public sealed record TopP3HelloWorldAiReplayStateMessage(
+    PartyRole[] Pairs, bool DefamationIsRed, bool[] Intercardinal, int[] RedStart) : MpMessage, IScenarioReplayStateMessage;
+
+public sealed record TopP4BlueScreenAiReplayStateMessage(PartyRole[] StackTargets) : MpMessage, IScenarioReplayStateMessage;
 
 // The four boss placements plus the three positions the Ai's live tie-break RNG resolved on
 // the host, so a replayed Ai can't land on a different-but-valid safe spot.

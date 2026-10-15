@@ -10,8 +10,15 @@ namespace AnoMech.Scenarios.Top;
 public sealed class TopZone : IZone
 {
     public static readonly TopZone Instance = new();
+    public static readonly Phase P1 = new(Instance, "P1", 77, BgmId.TopP1);
     public static readonly Phase P2 = new(Instance, "P2", 78, BgmId.TopP2,
         arenaMapEffectOverrides: new Dictionary<byte, ushort> { [0x0A] = 1 });
+    // Starts on P2's kill: P2's sky and track, until the scenario brings in P3's.
+    public static readonly Phase P3Intermission = new(Instance, "P3", 78, BgmId.TopP2,
+        arenaMapEffectOverrides: new Dictionary<byte, ushort> { [0x01] = 1, [0x0A] = 1 });
+    public static readonly Phase P3 = new(Instance, "P3", 79, BgmId.TopP3);
+    // Starts on P3's last moments, so it opens in P3's sky and arena, and P3's track plays on.
+    public static readonly Phase P4 = new(Instance, "P4", 79, BgmId.TopP3);
     public static readonly Phase P5 = new(Instance, "P5", 174, BgmId.TopP5);
     public static readonly Phase P6 = new(Instance, "P6", 175, BgmId.TopP6);
 

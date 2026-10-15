@@ -17,6 +17,8 @@ public sealed class SimPlayer : SimCharacter, ISimPartyMember
 
     public PartyRole Role { get; set; }
 
+    public byte ClassJob => Proxy.ClassJob;
+
     // For stillness/movement mechanics: IsMoving = movement input, a jump, any action, or an
     // in-flight debug-bot MoveTo; IsActing also counts auto-attacks. Forced false while KO'd.
     public bool IsMoving { get; private set; }
