@@ -61,9 +61,14 @@ public sealed class SimCast : ISimObject
     // start. A peer replays the same head start.
     public float ElapsedAtStart { get; private set; }
 
-    // True while the cast bar is up or the release animation is still playing. A following boss
-    // roots itself while busy so the action animation finishes in place instead of sliding.
-    public bool IsBusy => IsCasting || remainingAnimationLock > 0f;
+    // True while the cast bar is up, through the release that follows it, and while the release
+    // animation is still playing. A following boss roots itself while busy so the action animation
+    // finishes in place instead of sliding.
+    public bool IsBusy => IsCasting || ReleasePending || remainingAnimationLock > 0f;
+
+    // Set by the action handler from the bar's start until its release goes out: the bar can drop
+    // before the release, and the caster holds still in between.
+    internal bool ReleasePending { get; set; }
 
     // Owned and ticked by its SimCharacter, never reaped by liveness.
     public bool IsActive => true;
@@ -119,6 +124,7 @@ public sealed class SimCast : ISimObject
     public void Cancel(CastCancelReason reason)
     {
         parent.ActorControl.CancelCast(ActionId, reason);
+        ReleasePending = false;
         CancelSeq++;
     }
 
