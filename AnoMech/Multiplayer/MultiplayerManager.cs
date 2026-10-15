@@ -66,6 +66,7 @@ public sealed partial class MultiplayerManager : IDisposable
     // The host's status instance last applied per id (see DropRecreatedStatuses).
     private readonly Dictionary<int, Dictionary<ushort, int>> peerEnemyStatusInstances = new();
     private readonly Dictionary<PartyRole, Dictionary<ushort, int>> peerRoleStatusInstances = new();
+    private readonly Dictionary<PartyRole, int> peerRolePlayedActionSeq = new();
     // Set by OnPeerStartResolved once this run's deferred zone entry has completed. After a
     // Reset the zone is still loaded, so IsInInstance alone can't tell this run's party from
     // the last one's.
@@ -422,6 +423,7 @@ public sealed partial class MultiplayerManager : IDisposable
         peerEnemyReconciledStatuses.Clear();
         peerEnemyStatusInstances.Clear();
         peerRoleStatusInstances.Clear();
+        peerRolePlayedActionSeq.Clear();
         peerTethers.Clear();
         peerEventObjects.Clear();
         peerEnemyEngineSeqs.Clear();
@@ -1086,6 +1088,7 @@ public sealed partial class MultiplayerManager : IDisposable
         peerEnemyReconciledStatuses.Clear();
         peerEnemyStatusInstances.Clear();
         peerRoleStatusInstances.Clear();
+        peerRolePlayedActionSeq.Clear();
         peerTethers.Clear();
         peerEventObjects.Clear();
         peerEnemyEngineSeqs.Clear();

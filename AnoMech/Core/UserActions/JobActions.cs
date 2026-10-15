@@ -691,6 +691,11 @@ internal static unsafe class JobActions
         [3688] = [AnyGcd()],           // Hyperphantasia: one stack per pictomancy GCD
     };
 
+    // For a press the sim plays itself (a bot's, the debug bot's): the rolls (a mitigation's proc)
+    // are engine noise, not the run's.
+    public static void ApplyEffects(SimCharacter caster, uint actionId, ulong targetId)
+        => ApplyEffects(caster, actionId, targetId, System.Random.Shared);
+
     public static void ApplyEffects(SimCharacter caster, uint actionId, ulong targetId, System.Random rng)
     {
         if (!Actions.TryGetValue(actionId, out var effects)) return;

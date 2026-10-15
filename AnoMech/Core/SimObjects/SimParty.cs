@@ -51,7 +51,7 @@ public sealed class SimParty : ISimObject
         }
         var actionId = bot.UseLimitBreak(level);
         if (actionId == 0) return false;
-        LimitBreakHandler.Resolve(this, bot, actionId);
+        LimitBreakHandler.Resolve(this, bot, actionId, new LimitBreakAim(bot.Position, bot.Rotation));
         return true;
     }
 

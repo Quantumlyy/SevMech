@@ -27,4 +27,11 @@ public interface ILocalPlayerInput : IDisposable
     // null lets go. The game moves them at its own speed; `speed` is the run
     // or sprint speed the sim expects, which a headless client moves them at.
     void Steer(System.Numerics.Vector2? direction, float speed);
+
+    // The debug bot's LB3, pressed through the client as its player would: a ground-targeted one
+    // placed at worldLocation, the rest used on targetId. False when the client refuses it.
+    bool PressLimitBreakThree(ulong targetId, System.Numerics.Vector3? worldLocation);
+
+    // Where the player's last limit break was aimed, for the handler that resolves it.
+    LimitBreakPress LastLimitBreakPress { get; }
 }

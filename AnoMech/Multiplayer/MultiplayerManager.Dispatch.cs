@@ -11,6 +11,7 @@ using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Geometry;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
+using AnoMech.Core.Native.Interfaces;
 using AnoMech.Core.SimObjects;
 using AnoMech.Network;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -113,6 +114,11 @@ public sealed partial class MultiplayerManager
     // the real inn.
     private bool PeerInRun => !IsHost && running && peerEnteredInstance && Plugin.Game.World.Map.IsInInstance;
 
+    private bool IsOwnLimitBreak(Guid peerId, uint actionId)
+        => Session.Jobs.TryGetValue(peerId, out var job)
+           && Natives.Data.ClassJob(job) is { } row
+           && (row.LimitBreak1 == actionId || row.LimitBreak2 == actionId || row.LimitBreak3 == actionId);
+
     private static Guid? ClaimedPeerId(MpMessage message) => message switch
     {
         HelloMessage m => m.PeerId,
@@ -127,6 +133,7 @@ public sealed partial class MultiplayerManager
         LeaveRequestMessage m => m.PeerId,
         PeerAppliedEnemyStatusMessage m => m.PeerId,
         PeerAppliedRoleStatusMessage m => m.PeerId,
+        PeerLimitBreakMessage m => m.PeerId,
         _ => null,
     };
 
@@ -270,6 +277,25 @@ public sealed partial class MultiplayerManager
                     member.AddStatus(applied.StatusId, duration);
                     DiagnosticLog.Info($"[Multiplayer] Host: applied {who}'s reported status {applied.StatusId} (duration={duration:F1}) to role {role}.");
                 }
+                break;
+            }
+            case PeerLimitBreakMessage limitBreak when IsHost:
+            {
+                var who = Session.NameOf(limitBreak.PeerId);
+                if (!running || Session.RoleOf(limitBreak.PeerId) is not { } limitBreakRole) break;
+                if (!IsOwnLimitBreak(limitBreak.PeerId, limitBreak.ActionId))
+                {
+                    DiagnosticLog.Warn($"[Multiplayer] Host: {who} reported action {limitBreak.ActionId} as a limit break, which isn't one of its job's -- dropping.");
+                    break;
+                }
+                // An aim that fails the checks keeps the host's own view of the peer instead.
+                var puppet = Plugin.Game.World.Party.Get(limitBreakRole);
+                var origin = NetGuard.TryPosition(limitBreak.X, limitBreak.Y, limitBreak.Z, out var sent) ? sent : puppet?.Position ?? Vector3.Zero;
+                var aim = new LimitBreakAim(origin, NetGuard.Rotation(limitBreak.Heading),
+                    NetGuard.TryPosition(limitBreak.LocationX, limitBreak.LocationY, limitBreak.LocationZ));
+                DiagnosticLog.Info($"[Multiplayer] Host: {who} ({limitBreakRole})'s {Natives.Data.ActionName(limitBreak.ActionId)} landed, aimed from "
+                                    + $"({aim.Origin.X:F2},{aim.Origin.Z:F2}) heading {aim.Heading:F3}{(aim.Location is { } at ? $" at ({at.X:F2},{at.Z:F2})" : "")}.");
+                (Plugin.Game.ActiveScenario as IPartyLimitBreakScenario)?.OnPartyLimitBreak(limitBreakRole, limitBreak.ActionId, aim);
                 break;
             }
 
