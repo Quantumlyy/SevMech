@@ -50,6 +50,7 @@ internal sealed class EnemyActionHandler(SimCharacter caster, SimCast cast, SimW
             cast.NativeCast(id, ActionType.Action, action.Cast.OmenDelay, castTime, interruptible: false,
                 rotation: CastRotation(action, target, location), position: location, targetId: castTarget);
             if (elapsed > 0f) cast.SkipAhead(elapsed);
+            cast.ReleasePending = true;
         }
 
         // Resolve goes first: an instant action runs both inline, and the ActionEffect carries the hits.
@@ -65,6 +66,7 @@ internal sealed class EnemyActionHandler(SimCharacter caster, SimCast cast, SimW
         {
             if (handle.IsCancelled) return;
             if (casting == handle) casting = null;
+            cast.ReleasePending = false;
             Release(action, target, location, castTarget, animationVariation, delivery);
         });
         return handle;
