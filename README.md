@@ -31,7 +31,15 @@ As this feature is still in beta, some edge cases and less common interactions m
 
 ## Installation
 
-SevMech is not published to a plugin repository yet. Until it is, build it from source and load it as a dev plugin.
+Add the following custom repository in Dalamud Settings, Experimental tab, then install SevMech from the
+plugin installer (uninstall AnoMech first: the two share an internal name):
+
+```
+https://raw.githubusercontent.com/Quantumlyy/MyDalamudPlugins/main/pluginmaster.json
+```
+
+The repository is filled by the `Release plugin` workflow, so it lists SevMech once the first release
+has been run. Until then, build from source and load it as a dev plugin.
 
 For upstream AnoMech, see: https://github.com/anomek/MyDalamudPlugins
 

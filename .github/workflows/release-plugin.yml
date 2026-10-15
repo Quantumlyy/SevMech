@@ -18,10 +18,13 @@ permissions:
 
 jobs:
   build:
-    uses: anomek/MyDalamudPlugins/.github/workflows/build-plugin.yml@master
+    uses: ./.github/workflows/build-plugin.yml
     with:
+      # The DLL and manifest keep AnoMech's InternalName, so SevMech replaces AnoMech in Dalamud.
       internal_name: AnoMech
       solution_name: AnoMech
       version_bump: ${{ inputs.version_bump }}
+      plugin_repo: Quantumlyy/MyDalamudPlugins
+      plugin_repo_branch: main
     secrets:
-      PAT: ${{ secrets.PAT }}
+      PAT: ${{ secrets.GH_PREPO_PAT }}
