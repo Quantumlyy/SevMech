@@ -22,6 +22,9 @@ public sealed class TopP3IntermissionState
     public IEnumerable<PartyRole> Stacks => Debuffs.Skip(4).Take(2);
     public IEnumerable<PartyRole> Unmarked => Debuffs.Skip(6);
 
+    // A replay's: the seed of the host's Ai noise stream, so its bots and ours stagger alike.
+    public int? NoiseSeed { get; private init; }
+
     public TopP3IntermissionState(Rng rng, SimParty party, TopP3IntermissionStateOverrides overrides)
     {
         this.rng = rng;
@@ -40,10 +43,10 @@ public sealed class TopP3IntermissionState
         LeftArms = new bool[6];
     }
 
-    public static TopP3IntermissionState? FromNetworkReplay(PartyRole[]? debuffs, bool firstHandsNorth)
+    public static TopP3IntermissionState? FromNetworkReplay(PartyRole[]? debuffs, bool firstHandsNorth, int noiseSeed)
     {
         if (debuffs is not { Length: 8 } || !debuffs.All(Enum.IsDefined) || debuffs.Distinct().Count() != 8) return null;
-        return new TopP3IntermissionState(debuffs, firstHandsNorth ? FirstHands.North : FirstHands.South);
+        return new TopP3IntermissionState(debuffs, firstHandsNorth ? FirstHands.North : FirstHands.South) { NoiseSeed = noiseSeed };
     }
 
     public static float SpotBearing(int spot) => 60f * spot;

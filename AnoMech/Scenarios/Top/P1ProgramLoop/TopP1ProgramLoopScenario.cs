@@ -297,12 +297,11 @@ public sealed class TopP1ProgramLoopScenario : IMultiplayerReplayable
             s.FirstTetherHolders.ToArray())
         : null;
 
+    public bool PeersFollowHostPlan => true;
+
     public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
     {
         if (message is not TopP1ProgramLoopAiReplayStateMessage msg) return null;
-        if (TopP1ProgramLoopState.FromNetworkReplay(replayWorld.Party, msg.InLine, msg.TowerCardinals, msg.TowerShifts, msg.FirstTetherHolders) is not { } shadowState)
-            return null;
-        ((IScenarioAi<TopP1ProgramLoopState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
+        return TopP1ProgramLoopState.FromNetworkReplay(replayWorld.Party, msg.InLine, msg.TowerCardinals, msg.TowerShifts, msg.FirstTetherHolders);
     }
 }

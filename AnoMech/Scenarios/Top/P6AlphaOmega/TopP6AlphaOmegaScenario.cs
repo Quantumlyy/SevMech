@@ -240,7 +240,7 @@ public sealed class TopP6AlphaOmegaScenario : IMultiplayerReplayable, IPartyLimi
         Natives.TimelinePreload.Preload(GimmickTimelines, "TopP6AlphaOmega");
         instanceWorld.Party.LimitBreak.Set(3f);
         if (Practiced.Practice > P6Practice.CosmoMeteor)
-            instanceWorld.Events.Add(0f, () => instanceWorld.Map.AddEffect(0x00010001, TopZone.CosmoMeteorArenaSlot, broadcast: false));
+            instanceWorld.Events.Add(0f, () => instanceWorld.Map.AddEffect(0x00010001, TopZone.CosmoMeteorArenaSlot));
     }
 
     private void Section(P6Practice mechanic) => section = mechanic;
@@ -856,13 +856,12 @@ public sealed class TopP6AlphaOmegaScenario : IMultiplayerReplayable, IPartyLimi
             s.LeftDiveTank, s.MeteorMiddleHealer, s.WaveCannonInvulns[0], s.Practice)
         : null;
 
+    public bool PeersFollowHostPlan => true;
+
     public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
     {
         if (message is not TopP6AlphaOmegaAiReplayStateMessage msg) return null;
-        if (TopP6AlphaOmegaState.FromNetworkReplay(msg.ArrowsInFirst, msg.ExaflareStarts, msg.ExaflareTurns, msg.WildChargeTargets, msg.FlareTargets,
-                msg.StackTarget, msg.LeftDiveTank, msg.MeteorMiddleHealer, msg.FirstWaveCannonInvuln, msg.Practice) is not { } shadowState)
-            return null;
-        ((IScenarioAi<TopP6AlphaOmegaState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
+        return TopP6AlphaOmegaState.FromNetworkReplay(msg.ArrowsInFirst, msg.ExaflareStarts, msg.ExaflareTurns, msg.WildChargeTargets, msg.FlareTargets,
+            msg.StackTarget, msg.LeftDiveTank, msg.MeteorMiddleHealer, msg.FirstWaveCannonInvuln, msg.Practice);
     }
 }

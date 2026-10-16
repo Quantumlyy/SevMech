@@ -23,6 +23,8 @@ public sealed class TopP3MonitorsState
     public CleaveSide BossSide { get; }
     public IReadOnlyList<PartyRole> Monitors { get; }
     public IReadOnlyList<CleaveSide> MonitorSides { get; }
+    // A replay's: the seed of the host's Ai noise stream, so its bots and ours stagger alike.
+    public int? NoiseSeed { get; private init; }
 
     public TopP3MonitorsState(Rng rng, SimParty party, TopP3MonitorsStateOverrides overrides)
     {
@@ -50,12 +52,12 @@ public sealed class TopP3MonitorsState
         MonitorSides = monitorSides;
     }
 
-    public static TopP3MonitorsState? FromNetworkReplay(bool bossIsLeft, PartyRole[]? monitors, bool[]? monitorsAreLeft)
+    public static TopP3MonitorsState? FromNetworkReplay(bool bossIsLeft, PartyRole[]? monitors, bool[]? monitorsAreLeft, int noiseSeed)
     {
         if (monitors is not { Length: 3 } || monitors.Distinct().Count() != 3 || !monitors.All(Enum.IsDefined)
             || monitorsAreLeft is not { Length: 3 })
             return null;
-        return new(Side(bossIsLeft), monitors, monitorsAreLeft.Select(Side).ToArray());
+        return new(Side(bossIsLeft), monitors, monitorsAreLeft.Select(Side).ToArray()) { NoiseSeed = noiseSeed };
     }
 
     private static CleaveSide Side(bool left) => left ? CleaveSide.Left : CleaveSide.Right;

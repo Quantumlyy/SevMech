@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using AnoMech.Core.Game.Party;
 using AnoMech.Multiplayer;
 using AnoMech.Network;
 using static AnoMech.Tests.TestWire;
@@ -11,8 +10,8 @@ namespace AnoMech.Tests;
 public class ProtocolTests
 {
     // The peer types a relay passes from peers to the host; the rest are the host's alone.
-    private static readonly string[] PeerTypes = ["hello", "claim", "release", "pose", "pong", "startCheckResponse", "startAbort", "sessionEnded",
-        "resetRequest", "leaveRequest", "peerAppliedEnemyStatus", "peerAppliedRoleStatus", "peerLimitBreak"];
+    private static readonly string[] PeerTypes = ["hello", "claim", "release", "pose", "pong", "startCheckResponse", "startAbort", "entered",
+        "sessionEnded", "resetRequest", "leaveRequest", "peerAppliedEnemyStatus", "peerAppliedRoleStatus", "peerLimitBreak"];
 
     // Host messages are only typed by RelayWire; the rest falls to deserialization.
     [Test]
@@ -29,7 +28,7 @@ public class ProtocolTests
     public void FullEightPlayerSnapshotIsAccepted()
     {
         var id = RelayWire.PeerId(RelayWire.NewSecret());
-        var role = new RoleState(default, true, false, 0, 0, 0, 0, [], 10000, 10000);
+        var role = new RoleState(default, 0, 0, 0, 0);
         var message = new RolesSnapshotMessage(Enumerable.Repeat(role, 8).ToList());
         Assert.That(RelayWire.Validate(JsonSerializer.SerializeToUtf8Bytes<MpMessage>(message), true, id), Is.EqualTo("rolesSnapshot"));
     }
@@ -59,38 +58,25 @@ public class ProtocolTests
         Assert.That(peerForms, Is.EqualTo(PeerTypes.Length), "every peer type checked");
     }
 
-    // The optional fields a bot's limit break and the shared gauge ride on, and a legacy message
-    // without them.
+    // A frame that sends every status list at once, each slot full: the run's start.
     [Test]
-    public void LimitBreakFieldsRoundTripAndDefaultWhenAbsent()
+    public void LargeRealPacketFrameIsAccepted()
     {
         var id = RelayWire.PeerId(RelayWire.NewSecret());
-        var role = new RoleState(PartyRole.OffTank, true, false, 1, 2, 3, 0.5f, [], 10000, 10000,
-            PlayedActionId: 4240, PlayedActionAnimationLock: 3.86f, PlayedActionSeq: 2, PlayedActionCastSeconds: 4.5f,
-            PlayedActionEffectDelay: 3.97f, PlayedActionTargetEnemyNetId: 7, PlayedActionLocationX: 1f, PlayedActionLocationY: 0f,
-            PlayedActionLocationZ: -1f, PlayedActionHoldsStill: true);
-        var roles = (RolesSnapshotMessage)Receive(JsonSerializer.SerializeToUtf8Bytes<MpMessage>(new RolesSnapshotMessage([role])), true, id);
-        Assert.That(roles.Roles.Single() with { Statuses = role.Statuses }, Is.EqualTo(role));
-
-        var snapshot = (WorldSnapshotMessage)Receive(JsonSerializer.SerializeToUtf8Bytes<MpMessage>(new WorldSnapshotMessage([], [], [], 2.5f)), true, id);
-        Assert.That(snapshot.LimitBreakBars, Is.EqualTo(2.5f));
-        var legacy = (WorldSnapshotMessage)Receive(Bytes("{\"t\":\"snapshot\",\"Enemies\":[],\"Tethers\":[],\"EventObjects\":[]}"), true, id);
-        Assert.That(legacy.LimitBreakBars, Is.Null);
-
-        var landed = new PeerLimitBreakMessage(id, 205, 3f, 0f, -4f, 1.5f, 10f, 0f, 12f);
-        Assert.That(Receive(JsonSerializer.SerializeToUtf8Bytes<MpMessage>(landed), false, id), Is.EqualTo(landed));
+        var slots = Enumerable.Range(0, 60).Select(i => new StatusSlotPacket((byte)i, 1, 1, 30, 1)).ToList();
+        var packets = Enumerable.Range(0, 256).Select(i => (GamePacket)new StatusListPacket(0x4000FE00u + (uint)i, slots, 100, 100, 10000, 0)).ToList();
+        var message = new GamePacketsMessage(packets);
+        Assert.That(Receive(JsonSerializer.SerializeToUtf8Bytes<MpMessage>(message), true, id), Is.TypeOf<GamePacketsMessage>());
     }
 
     [Test]
-    public void LargeRealSnapshotIsAccepted()
+    public void EveryPacketFormRoundTrips()
     {
         var id = RelayWire.PeerId(RelayWire.NewSecret());
-        var enemy = Sample<EnemyState>(typeof(EnemyState), id) with
-        {
-            Statuses = Enumerable.Repeat(new EnemyStatusState(1, 1, 30), 64).ToArray(),
-        };
-        var message = new WorldSnapshotMessage(Enumerable.Repeat(enemy, 256).ToList(), [], []);
-        Assert.That(Receive(JsonSerializer.SerializeToUtf8Bytes<MpMessage>(message), true, id), Is.TypeOf<WorldSnapshotMessage>());
+        var forms = typeof(GamePacket).GetCustomAttributes<JsonDerivedTypeAttribute>().Select(a => a.DerivedType).ToArray();
+        var message = new GamePacketsMessage(forms.Select(form => Sample<GamePacket>(form, id)).ToList());
+        var received = Receive(JsonSerializer.SerializeToUtf8Bytes<MpMessage>(message), true, id);
+        Assert.That(((GamePacketsMessage)received).Packets.Select(p => p.GetType()), Is.EqualTo(forms));
     }
 
     private static T Sample<T>(Type type, Guid id)

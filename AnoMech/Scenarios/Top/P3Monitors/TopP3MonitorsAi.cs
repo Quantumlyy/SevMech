@@ -14,6 +14,8 @@ public sealed class TopP3MonitorsAi(bool automarkers) : IScenarioAi<TopP3Monitor
 {
     public string Name => automarkers ? "NA (automarkers)" : "NA";
 
+    public const string NoiseStream = "top-p3-monitors-ai";
+
     private const float MovePrompt = 0.3f;
 
     private static readonly PartyRole[] Conga =
@@ -38,7 +40,7 @@ public sealed class TopP3MonitorsAi(bool automarkers) : IScenarioAi<TopP3Monitor
     public void Run(TopP3MonitorsState s, SimWorld world)
     {
         state = s;
-        noise = world.Stream("top-p3-monitors-ai");
+        noise = state.NoiseSeed is { } seed ? new Rng(seed) : world.Stream(NoiseStream);
         ai = new AiManager(world);
         ai.Move(1f + MovePrompt, CongaWestOfOmega, jitter: 0.2f);
         foreach (var role in MonitorsNorthToSouth())
