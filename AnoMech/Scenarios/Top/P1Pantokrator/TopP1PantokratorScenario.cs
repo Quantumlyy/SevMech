@@ -200,12 +200,11 @@ public sealed class TopP1PantokratorScenario : IMultiplayerReplayable
     public MpMessage? BuildReplayStateMessage()
         => LastState is { } s ? new TopP1PantokratorAiReplayStateMessage(s.InLine.List, s.FlameStart, s.Clockwise, s.LaserOrder.ToArray()) : null;
 
+    public bool PeersFollowHostPlan => true;
+
     public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
     {
         if (message is not TopP1PantokratorAiReplayStateMessage msg) return null;
-        if (TopP1PantokratorState.FromNetworkReplay(replayWorld.Party, msg.InLine, msg.FlameStart, msg.Clockwise, msg.LaserOrder) is not { } shadowState)
-            return null;
-        ((IScenarioAi<TopP1PantokratorState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
+        return TopP1PantokratorState.FromNetworkReplay(replayWorld.Party, msg.InLine, msg.FlameStart, msg.Clockwise, msg.LaserOrder);
     }
 }

@@ -856,13 +856,12 @@ public sealed class TopP6AlphaOmegaScenario : IMultiplayerReplayable, IPartyLimi
             s.LeftDiveTank, s.MeteorMiddleHealer, s.WaveCannonInvulns[0], s.Practice)
         : null;
 
+    public bool PeersFollowHostPlan => true;
+
     public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
     {
         if (message is not TopP6AlphaOmegaAiReplayStateMessage msg) return null;
-        if (TopP6AlphaOmegaState.FromNetworkReplay(msg.ArrowsInFirst, msg.ExaflareStarts, msg.ExaflareTurns, msg.WildChargeTargets, msg.FlareTargets,
-                msg.StackTarget, msg.LeftDiveTank, msg.MeteorMiddleHealer, msg.FirstWaveCannonInvuln, msg.Practice) is not { } shadowState)
-            return null;
-        ((IScenarioAi<TopP6AlphaOmegaState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
+        return TopP6AlphaOmegaState.FromNetworkReplay(msg.ArrowsInFirst, msg.ExaflareStarts, msg.ExaflareTurns, msg.WildChargeTargets, msg.FlareTargets,
+            msg.StackTarget, msg.LeftDiveTank, msg.MeteorMiddleHealer, msg.FirstWaveCannonInvuln, msg.Practice);
     }
 }

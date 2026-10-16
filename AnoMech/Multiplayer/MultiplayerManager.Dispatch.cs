@@ -180,7 +180,7 @@ public sealed partial class MultiplayerManager
         // can send it). Keep in sync with the `when !IsHost` cases below.
         if (!IsHost && message is LobbyStateMessage or EnterMessage or StartMessage or GamePacketsMessage or RolesSnapshotMessage
             or RoleKilledMessage or KnockbackMessage or TeleportMessage or PushMessage or CarryMessage or FollowMessage
-            or EndMessage or PingMessage or PeerStatusMessage or AnnouncementMessage
+            or EndMessage or PingMessage or PeerStatusMessage or AnnouncementMessage or PlannedMovesMessage
             or IScenarioReplayStateMessage or IScenarioMidRunUpdateMessage or KickMessage)
         {
             lastHostMessageMs = NowMs;
@@ -352,6 +352,9 @@ public sealed partial class MultiplayerManager
             }
             case RolesSnapshotMessage rolesSnap when !IsHost:
                 OnRolesSnapshotReceived(rolesSnap);
+                break;
+            case PlannedMovesMessage moves when !IsHost:
+                OnPlannedMovesReceived(moves);
                 break;
             case RoleKilledMessage killed when !IsHost:
                 OnRoleKilledReceived(killed);

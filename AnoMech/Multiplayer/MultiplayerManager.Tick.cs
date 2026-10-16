@@ -17,6 +17,7 @@ public sealed partial class MultiplayerManager
         hostRunParams = null;
         pendingEntered = null;
         hostStageSetFor = null;
+        plannedMoves.Clear();
         DebugBotControl.Enabled = false;
         Plugin.Game.PartyMemberKilled -= OnPartyMemberKilledHost;
         Session.Started = false; // or the Start button stays disabled
@@ -79,6 +80,11 @@ public sealed partial class MultiplayerManager
         {
             if (!IsHost || relay is not { IsConnected: true }) return;
             _ = relay.SendAsync(new AnnouncementMessage(text));
+        };
+        Plugin.Game.World.MovePlanned += move =>
+        {
+            if (!IsHost || !running || TryResolveScenario() is not IMultiplayerReplayable { PeersFollowHostPlan: true }) return;
+            plannedMoves.Add(new PlannedMoveState(move.Role, move.Time, move.Spot.X, move.Spot.Y, move.Jitter, move.Sprint, move.Delay));
         };
     }
 
@@ -269,6 +275,7 @@ public sealed partial class MultiplayerManager
             FlushPackets();
             if (!aiReplayStateSent) TrySendAiReplayState();
             SendMidRunUpdate();
+            SendPlannedMoves();
             SendForcedMoves();
             if (pendingRolesSend is null or { IsCompleted: true })
                 pendingRolesSend = SampleAndBroadcastRoles();

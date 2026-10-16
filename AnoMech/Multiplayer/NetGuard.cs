@@ -16,6 +16,7 @@ internal static class NetGuard
     public const int MaxQueuedMessages = 8192;
     public const int MaxMessagesPerDrain = 2048;
     public const int MaxPacketsPerMessage = 4096;
+    public const int MaxPlannedMovesPerMessage = 256;
     public const int MaxSessionPeers = 64;
     public const uint MaxHp = 50_000_000;
     public const float MaxMitigationSeconds = 120f;

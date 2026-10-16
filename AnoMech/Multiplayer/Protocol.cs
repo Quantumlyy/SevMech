@@ -26,6 +26,7 @@ namespace AnoMech.Multiplayer;
 [JsonDerivedType(typeof(SelfPoseMessage), "pose")]
 [JsonDerivedType(typeof(GamePacketsMessage), "packets")]
 [JsonDerivedType(typeof(RolesSnapshotMessage), "rolesSnapshot")]
+[JsonDerivedType(typeof(PlannedMovesMessage), "plannedMoves")]
 [JsonDerivedType(typeof(RoleKilledMessage), "killed")]
 [JsonDerivedType(typeof(KnockbackMessage), "knockback")]
 [JsonDerivedType(typeof(TeleportMessage), "teleport")]
@@ -144,6 +145,12 @@ public sealed record SelfPoseMessage(Guid PeerId, float X, float Y, float Z, flo
 public sealed record RoleState(PartyRole Role, float X, float Y, float Z, float Rotation);
 
 public sealed record RolesSnapshotMessage(List<RoleState> Roles) : MpMessage, IHostOnlyMessage;
+
+// The host Ai's moves this frame, in order (IMultiplayerReplayable.PeersFollowHostPlan); a peer
+// acts on its own seat's.
+public sealed record PlannedMoveState(PartyRole Role, float Time, float X, float Z, float Jitter, bool Sprint, float Delay);
+
+public sealed record PlannedMovesMessage(List<PlannedMoveState> Moves) : MpMessage, IHostOnlyMessage;
 
 // One per Game.PartyMemberKilled; the recipient kills whatever holds that role locally.
 public sealed record RoleKilledMessage(PartyRole Role, string Cause) : MpMessage, IHostOnlyMessage;
@@ -301,11 +308,12 @@ public sealed record TopP1ProgramLoopAiReplayStateMessage(
 public sealed record TopP1PantokratorAiReplayStateMessage(
     PartyRole[] InLine, int FlameStart, bool Clockwise, PartyRole[] LaserOrder) : MpMessage, IScenarioReplayStateMessage;
 
-public sealed record TopP3MonitorsAiReplayStateMessage(bool BossIsLeft, PartyRole[] Monitors, bool[] MonitorsAreLeft) : MpMessage, IScenarioReplayStateMessage;
+// NoiseSeed: the host's Ai departure-spread stream, so a peer's bots stagger with the host's.
+public sealed record TopP3MonitorsAiReplayStateMessage(bool BossIsLeft, PartyRole[] Monitors, bool[] MonitorsAreLeft, int NoiseSeed = 0) : MpMessage, IScenarioReplayStateMessage;
 
 // The subset TopP3IntermissionAi reads: the debuff order (four spreads, two stacks, two without)
 // and which hands come first.
-public sealed record TopP3IntermissionAiReplayStateMessage(PartyRole[] Debuffs, bool FirstHandsNorth) : MpMessage, IScenarioReplayStateMessage;
+public sealed record TopP3IntermissionAiReplayStateMessage(PartyRole[] Debuffs, bool FirstHandsNorth, int NoiseSeed = 0) : MpMessage, IScenarioReplayStateMessage;
 
 public sealed record TopP3HelloWorldAiReplayStateMessage(
     PartyRole[] Pairs, bool DefamationIsRed, bool[] Intercardinal, int[] RedStart) : MpMessage, IScenarioReplayStateMessage;

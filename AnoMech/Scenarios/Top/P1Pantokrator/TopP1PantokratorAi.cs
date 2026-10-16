@@ -194,7 +194,7 @@ public sealed class TopP1PantokratorAi : IScenarioAi<TopP1PantokratorState>
 
     private static int LightPartyOf(PartyRole role) => Array.IndexOf(LightParties[0], role) >= 0 ? 0 : 1;
 
-    private bool Drives(PartyRole role) => world.Party.Get(role) is { } member && member.IsAlive() && world.Party.IsBotDriven(member);
+    private bool Drives(PartyRole role) => world.Party.Get(role) is { } member && member.IsAlive() && world.Party.PlansFor(member);
 
     private Vector2 Live(PartyRole role) => world.Party.Get(role) is { } member ? new Vector2(member.Position.X, member.Position.Z) : Vector2.Zero;
 

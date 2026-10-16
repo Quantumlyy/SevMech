@@ -530,7 +530,7 @@ public sealed class TopP1ProgramLoopAi(bool lpdu, bool automarkers) : IScenarioA
         return Walk(first, a) + Walk(second, b) <= Walk(first, b) + Walk(second, a) ? [a, b] : [b, a];
     }
 
-    private bool Drives(PartyRole role) => world.Party.Get(role) is { } member && world.Party.IsBotDriven(member);
+    private bool Drives(PartyRole role) => world.Party.Get(role) is { } member && world.Party.PlansFor(member);
 
     private Vector2 Live(PartyRole role) => world.Party.Get(role) is { } member ? Live(member) : Vector2.Zero;
 

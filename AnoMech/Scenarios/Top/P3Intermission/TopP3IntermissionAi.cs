@@ -47,6 +47,8 @@ public sealed class TopP3IntermissionAi(bool automarkers) : IScenarioAi<TopP3Int
 
     private readonly record struct Plan(PartyRole Role, float Home, float Edge, float Tuck, float Inset);
 
+    public const string NoiseStream = "top-p3-intermission-ai";
+
     private TopP3IntermissionState state = null!;
     private Rng noise = null!;
     private AiManager ai = null!;
@@ -55,7 +57,7 @@ public sealed class TopP3IntermissionAi(bool automarkers) : IScenarioAi<TopP3Int
     public void Run(TopP3IntermissionState s, SimWorld world)
     {
         state = s;
-        noise = world.Stream("top-p3-intermission-ai");
+        noise = state.NoiseSeed is { } seed ? new Rng(seed) : world.Stream(NoiseStream);
         ai = new AiManager(world);
         planned.Clear();
 

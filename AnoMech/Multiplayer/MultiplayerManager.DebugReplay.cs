@@ -1,4 +1,8 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 using AnoMech.Core;
+using AnoMech.Core.Game.Ai;
 using AnoMech.Core.SimObjects;
 using AnoMech.Scenarios;
 
@@ -45,7 +49,45 @@ public sealed partial class MultiplayerManager
         {
             debugShadowStateGeneric = shadowState;
             DebugBotControl.Enabled = true;
+            foreach (var move in earlyPlannedMoves) FollowPlannedMove(move);
         }
+        earlyPlannedMoves.Clear();
+    }
+
+    // ---- The host's plan, walked by a peer's debug bot (IMultiplayerReplayable.PeersFollowHostPlan)
+
+    // Host: the Ai's moves since the last send.
+    private readonly List<PlannedMoveState> plannedMoves = new();
+    // Peer: moves that came before the debug-bot replay was up to walk them.
+    private readonly List<PlannedMoveState> earlyPlannedMoves = new();
+    private AiManager? followAi;
+
+    private void SendPlannedMoves()
+    {
+        if (plannedMoves.Count == 0) return;
+        _ = relay!.SendAsync(new PlannedMovesMessage(plannedMoves.ToList()));
+        plannedMoves.Clear();
+    }
+
+    private void OnPlannedMovesReceived(PlannedMovesMessage msg)
+    {
+        if (!debugBotControlled || !PeerInRun || MyClaimedRole is not { } myRole) return;
+        var mine = NetGuard.Cap(msg.Moves, NetGuard.MaxPlannedMovesPerMessage).Where(m => m.Role == myRole).ToList();
+        if (debugShadowStateGeneric == null)
+        {
+            if (earlyPlannedMoves.Count + mine.Count <= NetGuard.MaxQueuedMessages) earlyPlannedMoves.AddRange(mine);
+            return;
+        }
+        foreach (var move in mine) FollowPlannedMove(move);
+    }
+
+    private void FollowPlannedMove(PlannedMoveState move)
+    {
+        var world = Plugin.Game.World;
+        if (!NetGuard.TryPosition(move.X, 0f, move.Z, out var spot)) return;
+        followAi ??= new AiManager(world);
+        followAi.Follow(new PlannedMove(move.Role, NetGuard.Clamp(move.Time, 0f, 3600f), new Vector2(spot.X, spot.Z),
+            NetGuard.Clamp(move.Jitter, 0f, 5f), move.Sprint, NetGuard.Clamp(move.Delay, 0f, 60f)));
     }
 
     // Every frame: the bot reads this client's world, so the handles and the obstacles it steers
@@ -69,6 +111,8 @@ public sealed partial class MultiplayerManager
         pendingGenericReplayState = null;
         debugShadowStateGeneric = null;
         debugBotReplayStarted = false;
+        earlyPlannedMoves.Clear();
+        followAi = null;
     }
 
 }

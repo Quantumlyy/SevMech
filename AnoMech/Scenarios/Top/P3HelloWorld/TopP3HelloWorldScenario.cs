@@ -591,12 +591,11 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
             s.Towers.Select(towers => towers.Intercardinal).ToArray(), s.Towers.Select(towers => towers.RedStart).ToArray())
         : null;
 
+    public bool PeersFollowHostPlan => true;
+
     public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
     {
         if (message is not TopP3HelloWorldAiReplayStateMessage msg) return null;
-        if (TopP3HelloWorldState.FromNetworkReplay(replayWorld.Party, msg.Pairs, msg.DefamationIsRed, msg.Intercardinal, msg.RedStart) is not { } shadowState)
-            return null;
-        ((IScenarioAi<TopP3HelloWorldState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
-        return shadowState;
+        return TopP3HelloWorldState.FromNetworkReplay(replayWorld.Party, msg.Pairs, msg.DefamationIsRed, msg.Intercardinal, msg.RedStart);
     }
 }

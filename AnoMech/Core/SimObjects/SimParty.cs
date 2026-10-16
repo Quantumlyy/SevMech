@@ -144,6 +144,10 @@ public sealed class SimParty : ISimObject
     public bool IsBotDriven(SimCharacter member)
         => (!ReferenceEquals(member, Player) || DebugBotControl.Enabled) && member is not SimNetworkPuppet;
 
+    // The seats an Ai steering from the live world plans for: the bot-driven ones, and a remote
+    // player's, whose own client walks the plan when its debug bot drives it (SimWorld.MovePlanned).
+    public bool PlansFor(SimCharacter member) => IsBotDriven(member) || member is SimNetworkPuppet;
+
     internal IEnumerable<SimCharacter> ActiveMembers()
     {
         for (int i = 0; i < slots.Length; i++)

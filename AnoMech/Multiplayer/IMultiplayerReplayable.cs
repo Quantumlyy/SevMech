@@ -19,6 +19,12 @@ public interface IMultiplayerReplayable : IScenario
     // state (opaque to everything but this scenario); null if the message/index don't check out.
     object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld world);
 
+    // Optional: the Ai steers its seats from the live world, so only the host's view of it can
+    // plan them. The host plans every seat, remote ones included (SimParty.PlansFor), and relays
+    // each move to its peers; a bot-driven peer walks the plan for its own seat as it arrives,
+    // and StartReplay only rebuilds the state.
+    bool PeersFollowHostPlan => false;
+
     // Optional, host-only: for state resolved mid-run, which the one-shot broadcast can't carry.
     // Track your own last-sent value to stay edge-triggered.
     MpMessage? BuildMidRunUpdateMessage() => null;
