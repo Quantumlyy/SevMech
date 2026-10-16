@@ -54,6 +54,16 @@ internal sealed class FakeBattleChara(FakeBattleCharas owner, int slot) : IBattl
 
     public bool IsDrawObjectVisible => Actor is { HasDrawObject: true, IsDrawObjectVisible: true };
 
+    public bool Hidden
+    {
+        get => Actor?.Hidden ?? false;
+        set
+        {
+            if (slot < 0 || Actor is not { } a || a.Hidden == value) return;
+            a.Hidden = value;
+            Record(value ? "hide" : "show");
+        }
+    }
 
     public byte ModelState => Actor?.ModelState ?? 0;
 

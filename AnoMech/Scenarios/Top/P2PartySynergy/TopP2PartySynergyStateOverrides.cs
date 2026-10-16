@@ -6,6 +6,18 @@ namespace AnoMech.Scenarios.Top.P2PartySynergy;
 // Same order as LockonId.Playstation: the symbol's index is its conga pair.
 public enum PlaystationSymbol { Cross, Square, Circle, Triangle }
 
+// Resolves the other party members are hidden through, from the strat's move to it until the hit
+// lands; they still move and get checked.
+[Flags]
+public enum HiddenResolves
+{
+    None = 0,
+    Forms = 1,
+    Spread = 2,
+    Knockback = 4,
+    Stacks = 8,
+}
+
 // User-controlled overrides for TopP2PartySynergyState's randomized fields.
 // Bound by the scenario's settings UI; null values leave the field randomized
 // at scenario start. The state ctor consumes this directly.
@@ -18,6 +30,8 @@ public sealed class TopP2PartySynergyStateOverrides
     public GlitchType? Glitch { get; set; }
     public OmegaAttack? AttackM { get; set; }
     public OmegaAttack? AttackF { get; set; }
+
+    public HiddenResolves HideParty { get; set; }
 
     // Two seats per symbol and two stack targets; a seat arriving at a full one keeps the roll.
     public PerRoleSetting<PlaystationSymbol> Symbol { get; set; } = new();

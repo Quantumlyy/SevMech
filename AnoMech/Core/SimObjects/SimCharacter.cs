@@ -71,6 +71,16 @@ public abstract class SimCharacter : ISimObject, IPositioned
         Motion.Clear();
     }
 
+    // Not drawn on this client; the sim moves and resolves it as usual. Cleared at run end.
+    public bool Hidden
+    {
+        get => Proxy?.Hidden ?? false;
+        set
+        {
+            if (Proxy is { } chara) chara.Hidden = value;
+        }
+    }
+
     // -------------------------
     // Location Subsystem
     // -------------------------
@@ -393,6 +403,7 @@ public abstract class SimCharacter : ISimObject, IPositioned
     internal virtual void ClearRunState()
     {
         statusList.Despawn();
+        Hidden = false;
         if (ActorControl.Confused) ActorControl.SetConfused(false);
         confusedChaseHold = 0f;
         Motion.Clear();

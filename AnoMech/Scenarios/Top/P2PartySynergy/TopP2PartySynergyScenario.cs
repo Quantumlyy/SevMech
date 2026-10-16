@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using AnoMech.Core.Game;
 using AnoMech.Core.Game.Ai;
@@ -60,6 +61,7 @@ public sealed class TopP2PartySynergyScenario : IMultiplayerReplayable
         Run_InstanceEvents();
         Run_PlayerTethers(solo);
         Run_PlayerLockons(solo);
+        Run_HideParty();
     }
 
     private void Run_InstanceEvents()
@@ -100,6 +102,20 @@ public sealed class TopP2PartySynergyScenario : IMultiplayerReplayable
             p.AttachLockonVfx(LockonId.Playstation[i/2]); 
         }));
         world.Events.Add(22.63f, () => state.Stacks.ForEach(p => p.AttachLockonVfx(LockonId.Stack)));
+    }
+
+    // The party shows again only once no selected window covers the time, so adjoining and
+    // overlapping windows read as one.
+    private void Run_HideParty()
+    {
+        var hide = settingsWindow.Overrides.HideParty;
+        var windows = new List<(float From, float To)>();
+        if (hide.HasFlag(HiddenResolves.Forms))     windows.Add((10.00f, 16.50f));
+        if (hide.HasFlag(HiddenResolves.Spread))    windows.Add((16.00f, 22.50f));
+        if (hide.HasFlag(HiddenResolves.Knockback)) windows.Add((23.00f, 30.00f));
+        if (hide.HasFlag(HiddenResolves.Stacks))    windows.Add((30.00f, 34.50f));
+        foreach (var time in windows.SelectMany(w => new[] { w.From, w.To }).Distinct().Order())
+            world.Events.Add(time, () => party.SetOthersHidden(windows.Any(w => w.From <= time && time < w.To)));
     }
 
     public void Tick(float delta, float elapsed) { }

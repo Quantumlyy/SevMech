@@ -132,4 +132,27 @@ public class TopP2PartySynergyScenarioTests
         => Healer(PlaystationSymbol.Circle, GlitchType.Mid)
             .TeleportAt(31f, to: new(-13, -3))
             .ShouldKill(ActionId.EfficientBladework, RegenHealer);
+
+    // Forms and Knockback hidden: the bots are gone from the clones' reveal to the hit and from the
+    // knockback move to the push, back for the spread between and the stacks after; the player never.
+    [Test]
+    public void HidesOthersThroughSelectedResolves()
+    {
+        float[] samples = [9f, 12f, 16.2f, 20f, 25f, 32f];
+        var seen = new Dictionary<float, (bool Bot, bool Player)>();
+        var run = ScenarioRun.Execute(typeof(TopP2PartySynergyScenario), 0, 1, new ScenarioRunOptions
+        {
+            PlayerRole = RegenHealer,
+            WriteArtifactsOnFailure = false,
+            Overrides = o => ((TopP2PartySynergyStateOverrides)o).HideParty = HiddenResolves.Forms | HiddenResolves.Knockback,
+            Probe = p =>
+            {
+                foreach (var t in samples)
+                    if (p.Crossed(t)) seen[t] = (p.Member(OffTank)!.Hidden, p.Member(RegenHealer)!.Hidden);
+            },
+        });
+        Assert.That(run.Passed, Is.True, run.Failure ?? string.Join(", ", run.Deaths.Select(d => d.Cause)));
+        Assert.That(samples.Select(t => seen[t].Bot), Is.EqualTo(new[] { false, true, true, false, true, false }));
+        Assert.That(samples.Select(t => seen[t].Player), Has.All.False);
+    }
 }
