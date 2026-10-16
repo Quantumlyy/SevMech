@@ -45,6 +45,10 @@ public interface IBattleCharaProxy
     bool HasDrawObject { get; }
     bool IsDrawObjectVisible { get; }
 
+    // GameObject.RenderFlags' model and nameplate bits: neither draws while set, and the actor
+    // stays in the world for everything else. The local player's proxy ignores it.
+    bool Hidden { get; set; }
+
     byte ModelState { get; }
 
     // ── Casting ──────────────────────────────────────────────────────────────

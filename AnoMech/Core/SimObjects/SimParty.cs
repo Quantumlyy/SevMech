@@ -244,6 +244,14 @@ public sealed class SimParty : ISimObject
         foreach (var member in AllMembers()) member.ActorControl.SetInCombat(inCombat);
     }
 
+    // Every seat but the local player's, so a resolve can be practised without reading it off
+    // the party. The sim keeps moving and checking them.
+    public void SetOthersHidden(bool hidden)
+    {
+        foreach (var member in AllMembers())
+            if (!ReferenceEquals(member, Player)) member.Hidden = hidden;
+    }
+
     public void Mark(Sign sign, SimCharacter target) => Player?.ActorControl.Mark(sign, target.GameObjectId);
 
     public void ClearMark(Sign sign) => Player?.ActorControl.ClearMark(sign);

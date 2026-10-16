@@ -166,6 +166,26 @@ internal sealed unsafe class BattleCharaProxy : IBattleCharaProxy
         }
     }
 
+    private const VisibilityFlags HiddenFlags = VisibilityFlags.Model | VisibilityFlags.Nameplate;
+
+    public bool Hidden
+    {
+        get
+        {
+            var obj = Ptr;
+            return obj != null && (((GameObject*)obj)->RenderFlags & HiddenFlags) == HiddenFlags;
+        }
+        set
+        {
+            if (Slot < 0) return;
+            var obj = Ptr;
+            if (obj == null) return;
+            var go = (GameObject*)obj;
+            if (value) go->RenderFlags |= HiddenFlags;
+            else go->RenderFlags &= ~HiddenFlags;
+        }
+    }
+
     public byte ModelState
     {
         get

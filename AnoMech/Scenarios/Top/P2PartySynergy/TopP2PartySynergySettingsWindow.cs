@@ -28,6 +28,7 @@ public sealed class TopP2PartySynergySettingsWindow
             DrawGlitch();
             DrawAttackM();
             DrawAttackF();
+            DrawHideParty();
             if (solo) DrawPlayerRows();
             SettingsGrid.End();
         }
@@ -62,6 +63,7 @@ public sealed class TopP2PartySynergySettingsWindow
         Overrides.Glitch    = null;
         Overrides.AttackM   = null;
         Overrides.AttackF   = null;
+        Overrides.HideParty = HiddenResolves.None;
     }
 
     private void ResetPerPlayer()
@@ -144,6 +146,27 @@ public sealed class TopP2PartySynergySettingsWindow
         if (ImGui.RadioButton("Sword##atkM",  v == OmegaAttack.Sword))  Overrides.AttackM = OmegaAttack.Sword;
         ImGui.SameLine();
         if (ImGui.RadioButton("Shield##atkM", v == OmegaAttack.Shield)) Overrides.AttackM = OmegaAttack.Shield;
+    }
+
+    private void DrawHideParty()
+    {
+        SettingsGrid.Row("Hide party during:");
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("The other party members vanish while the resolve plays out, so you read the mechanic rather than the party. They still move, take tethers and get checked.");
+        DrawHideFlag("Forms##hide", HiddenResolves.Forms);
+        ImGui.SameLine();
+        DrawHideFlag("Spread##hide", HiddenResolves.Spread);
+        ImGui.SameLine();
+        DrawHideFlag("Knockback##hide", HiddenResolves.Knockback);
+        ImGui.SameLine();
+        DrawHideFlag("Stacks##hide", HiddenResolves.Stacks);
+    }
+
+    private void DrawHideFlag(string label, HiddenResolves flag)
+    {
+        var on = Overrides.HideParty.HasFlag(flag);
+        if (ImGui.Checkbox(label, ref on))
+            Overrides.HideParty = on ? Overrides.HideParty | flag : Overrides.HideParty & ~flag;
     }
 
     private void DrawAttackF()

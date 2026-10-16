@@ -34,7 +34,7 @@ public static class ScenarioSettingsSummary
                 continue;
             }
             var text = Format(value);
-            if (text is null or "Auto" or "Random") continue;
+            if (text is null or "Auto" or "Random" or "None") continue;
             lines.Add($"{Label(property.Name)}: {text}");
         }
         return lines;

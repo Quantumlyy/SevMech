@@ -28,6 +28,7 @@ internal sealed class FakeCharacter(uint entityId, string name)
     public byte ModelState { get; set; }
     public bool HasDrawObject { get; set; }
     public bool IsDrawObjectVisible { get; set; }
+    public bool Hidden { get; set; }
     public Dictionary<byte, ushort> Tethers { get; } = new();
     public Dictionary<ushort, AnoMech.Core.Native.Interfaces.StatusSlot> Statuses { get; set; } = new();
 
