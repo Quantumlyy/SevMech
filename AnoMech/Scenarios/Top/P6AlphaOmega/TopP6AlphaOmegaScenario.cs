@@ -240,7 +240,7 @@ public sealed class TopP6AlphaOmegaScenario : IMultiplayerReplayable, IPartyLimi
         Natives.TimelinePreload.Preload(GimmickTimelines, "TopP6AlphaOmega");
         instanceWorld.Party.LimitBreak.Set(3f);
         if (Practiced.Practice > P6Practice.CosmoMeteor)
-            instanceWorld.Events.Add(0f, () => instanceWorld.Map.AddEffect(0x00010001, TopZone.CosmoMeteorArenaSlot, broadcast: false));
+            instanceWorld.Events.Add(0f, () => instanceWorld.Map.AddEffect(0x00010001, TopZone.CosmoMeteorArenaSlot));
     }
 
     private void Section(P6Practice mechanic) => section = mechanic;

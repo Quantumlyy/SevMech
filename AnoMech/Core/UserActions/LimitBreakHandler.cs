@@ -43,10 +43,17 @@ internal sealed class LimitBreakHandler : IUserActionHandler
     // The client's handler empties the HUD gauge; Spend only keeps FilledBars in step.
     internal static void Resolve(SimParty party, SimCharacter user, uint actionId, LimitBreakAim aim)
     {
-        var group = Group((user as ISimPartyMember)?.Role, party.LimitBreak.FilledBars);
-        foreach (var member in party.AllMembers()) member.ActorControl.LimitBreakResolve(actionId, member == user, group);
+        Announce(party, user, actionId);
         party.LimitBreak.Spend();
         party.LimitBreak.Land(actionId, aim);
+    }
+
+    // The party's resolve ActorControls alone: the server's answer to a press made elsewhere (a
+    // peer's, reported to its host), whose gauge the scenario spends.
+    internal static void Announce(SimParty party, SimCharacter user, uint actionId)
+    {
+        var group = Group((user as ISimPartyMember)?.Role, party.LimitBreak.FilledBars);
+        foreach (var member in party.AllMembers()) member.ActorControl.LimitBreakResolve(actionId, member == user, group);
     }
 
     // The local player's own, as the client fired it. JobActionHandler applies its row only with
