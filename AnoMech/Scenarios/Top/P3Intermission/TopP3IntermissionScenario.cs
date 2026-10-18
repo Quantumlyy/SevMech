@@ -408,12 +408,14 @@ public sealed class TopP3IntermissionScenario : IMultiplayerReplayable
     }
 
     public MpMessage? BuildReplayStateMessage()
-        => LastState is { } s ? new TopP3IntermissionAiReplayStateMessage(s.Debuffs.ToArray(), s.FirstHands == FirstHands.North) : null;
+        => LastState is { } s
+            ? new TopP3IntermissionAiReplayStateMessage(s.Debuffs.ToArray(), s.FirstHands == FirstHands.North, world.Stream(TopP3IntermissionAi.NoiseStream).Seed)
+            : null;
 
     public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
     {
         if (message is not TopP3IntermissionAiReplayStateMessage msg) return null;
-        if (TopP3IntermissionState.FromNetworkReplay(msg.Debuffs, msg.FirstHandsNorth) is not { } shadowState) return null;
+        if (TopP3IntermissionState.FromNetworkReplay(msg.Debuffs, msg.FirstHandsNorth, msg.NoiseSeed) is not { } shadowState) return null;
         ((IScenarioAi<TopP3IntermissionState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
         return shadowState;
     }

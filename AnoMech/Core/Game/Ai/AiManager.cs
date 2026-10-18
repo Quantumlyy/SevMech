@@ -46,20 +46,34 @@ public sealed class AiManager
                 var member = world.Party.Get(i);
                 if (member == null || !member.IsAlive()) continue;
                 var target = Jitter(new Vector3(local.X, 0f, local.Y), jitter);
-                var partyMember = member as ISimPartyMember;
-                var role = partyMember?.Role.ToString() ?? $"slot{i}";
                 var dist = Vector2.Distance(new Vector2(member.Position.X, member.Position.Z), new Vector2(target.X, target.Z));
                 var (sprinting, delay) = arrivalTime is { } arrival
                     ? PlanArrival(dist, arrival - time - MoveDeadlineSafetyMargin)
                     : (sprint, 0f);
-                var speed = sprinting ? SprintSpeed : RunSpeed;
-
-                if (sprinting) partyMember?.UseSprint(dist / SprintSpeed + 1f);
-                AnoMech.Core.DiagnosticLog.Info($"[AiManager] Move@{time:F1}: {role} ({member.Position.X:F1},{member.Position.Z:F1}) -> ({target.X:F1},{target.Z:F1}) {dist:F1}y{(sprinting ? " sprinting" : "")}{(delay > 0f ? $", leaving in {delay:F2}s" : "")}.");
-                if (delay > 0f) world.Events.Add(delay, () => member.MoveTo(target, speed: speed), file, line);
-                else member.MoveTo(target, speed: speed);
+                var planned = new PlannedMove((PartyRole)i, time, local, jitter, sprinting, delay);
+                Issue(member, planned, target, file, line);
+                world.ReportPlannedMove(planned);
             }
         }, file, line);
+    }
+
+    // A move as the host's Ai issued it to our seat (see SimWorld.MovePlanned).
+    public void Follow(PlannedMove planned, [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+    {
+        if (world.Party.Get(planned.Role) is { } member)
+            Issue(member, planned, Jitter(new Vector3(planned.Spot.X, 0f, planned.Spot.Y), planned.Jitter), file, line);
+    }
+
+    // target: the spot with this client's jitter on it.
+    private void Issue(SimCharacter member, PlannedMove planned, Vector3 target, string file, int line)
+    {
+        var dist = Vector2.Distance(new Vector2(member.Position.X, member.Position.Z), new Vector2(target.X, target.Z));
+        var speed = planned.Sprint ? SprintSpeed : RunSpeed;
+        if (planned.Sprint) (member as ISimPartyMember)?.UseSprint(dist / SprintSpeed + 1f);
+        // `for`: the spot before the jitter, which each client rolls on its own stream.
+        AnoMech.Core.DiagnosticLog.Info($"[AiManager] Move@{planned.Time:F1}: {planned.Role} ({member.Position.X:F1},{member.Position.Z:F1}) -> ({target.X:F1},{target.Z:F1}) for ({planned.Spot.X:F2},{planned.Spot.Y:F2}) {dist:F1}y{(planned.Sprint ? " sprinting" : "")}{(planned.Delay > 0f ? $", leaving in {planned.Delay:F2}s" : "")}.");
+        if (planned.Delay > 0f) world.Events.Add(planned.Delay, () => member.MoveTo(target, speed: speed), file, line);
+        else member.MoveTo(target, speed: speed);
     }
 
     // Walk, leaving as late as still arrives in time; sprint now if walking can't make it.

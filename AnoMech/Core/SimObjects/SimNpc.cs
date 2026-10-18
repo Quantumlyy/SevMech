@@ -80,32 +80,18 @@ public class SimNpc : SimCharacter
 
     public void SetModelState(byte value) => ActorControl.SetModelState(value);
 
-    // Sampled for peers.
-    public byte ModelState => proxy?.ModelState ?? 0;
-
     // Which sub-meshes show, e.g. Omega-M's shield.
     public void SetModeAttributeFlags(byte value) => ActorControl.SetModeAttributeFlags(value);
 
-    // A party doppel's own action with the real packet shape: the bar, then the release. Here
-    // rather than on SimPartyNpc because the same seat is a SimNetworkPuppet on every peer, which
-    // has to play it too; SimEnemy drives its own richer cast instead. Effects (statuses, damage)
-    // stay the caller's job, exactly as for an enemy Cast.
-    //
-    // Sampled for peers; PlayedActionSeq is the edge trigger.
-    public uint PlayedActionId { get; private set; }
-    public float PlayedActionAnimationLock { get; private set; }
-    public float PlayedActionCastSeconds { get; private set; }
-    public float PlayedActionEffectDelay { get; private set; }
-    public SimCharacter? PlayedActionTarget { get; private set; }
-    public Vector3? PlayedActionLocation { get; private set; }
-    public bool PlayedActionHoldsStill { get; private set; }
-    public int PlayedActionSeq { get; private set; }
-
+    // A party doppel's own action with the real packet shape: the bar, then the release. SimEnemy
+    // drives its own richer cast instead. Effects (statuses, damage) stay the caller's job, exactly
+    // as for an enemy Cast.
     private (uint ActionId, float AnimationLock, SimCharacter? Target, Vector3? Location)? pendingActionEffect;
     private float pendingActionEffectIn;
+    private bool playedActionHoldsStill;
     private float heldStillFor;
 
-    public override bool AnimationLock => PlayedActionHoldsStill && (pendingActionEffect != null || heldStillFor > 0f);
+    public override bool AnimationLock => playedActionHoldsStill && (pendingActionEffect != null || heldStillFor > 0f);
 
     // castSeconds > 0 puts the bar up first. A player's cast resolves before its bar fills, so
     // the effect lands effectDelay into it and the bar goes with it. A ground-targeted action goes
@@ -114,14 +100,7 @@ public class SimNpc : SimCharacter
     public void PlayAction(uint actionId, float animationLock = 0.6f, float castSeconds = 0f, float effectDelay = 0f,
         SimCharacter? target = null, Vector3? location = null, bool holdStill = false)
     {
-        PlayedActionId = actionId;
-        PlayedActionAnimationLock = animationLock;
-        PlayedActionCastSeconds = castSeconds;
-        PlayedActionEffectDelay = effectDelay;
-        PlayedActionTarget = target;
-        PlayedActionLocation = location;
-        PlayedActionHoldsStill = holdStill;
-        PlayedActionSeq++;
+        playedActionHoldsStill = holdStill;
         heldStillFor = 0f;
         if (location is { } at) Face(at);
         else if (target != null) Face(target);
@@ -138,7 +117,7 @@ public class SimNpc : SimCharacter
 
     private void FireAction(uint actionId, float animationLock, SimCharacter? target, Vector3? location)
     {
-        if (PlayedActionHoldsStill) heldStillFor = animationLock;
+        if (playedActionHoldsStill) heldStillFor = animationLock;
         if (location is { } at)
         {
             Casting.NativeActionEffect(actionId, animationLock, (ushort)actionId, 0, ActionType.Action, 0, position: at);
@@ -190,22 +169,8 @@ public class SimNpc : SimCharacter
     internal override void ClearRunState()
     {
         AbortPlayedAction(CastCancelReason.Cancelled);
-        ForgetPlayedAction();
+        playedActionHoldsStill = false;
         base.ClearRunState();
-    }
-
-    // The party outlives a run, and a peer replays whatever seq the first snapshot of the next
-    // one carries.
-    private void ForgetPlayedAction()
-    {
-        PlayedActionId = 0;
-        PlayedActionAnimationLock = 0f;
-        PlayedActionCastSeconds = 0f;
-        PlayedActionEffectDelay = 0f;
-        PlayedActionTarget = null;
-        PlayedActionLocation = null;
-        PlayedActionHoldsStill = false;
-        PlayedActionSeq = 0;
     }
 
     public override void Despawn()
@@ -214,7 +179,7 @@ public class SimNpc : SimCharacter
         PacketSpawnPending = false;
         pendingActionEffect = null;
         heldStillFor = 0f;
-        ForgetPlayedAction();
+        playedActionHoldsStill = false;
         Casting.Despawn();
         base.Despawn();
         proxy.Despawn();

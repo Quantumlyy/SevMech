@@ -467,7 +467,7 @@ public sealed class TopP6AlphaOmegaAi : IScenarioAi<TopP6AlphaOmegaState>
     {
         foreach (var (role, (_, spot)) in startSpots)
             if (Drives(role) && world.Party.Get(role) is { } bot && bot.IsAlive())
-                bot.SetPosition(new Placement(new Vector3(spot.X, 0f, spot.Y), bot.Rotation));
+                bot.TeleportTo(new Placement(new Vector3(spot.X, 0f, spot.Y), bot.Rotation));
     }
 
     private void At(float time, Action action)
@@ -609,7 +609,7 @@ public sealed class TopP6AlphaOmegaAi : IScenarioAi<TopP6AlphaOmegaState>
     private float Stagger(float spread) => noise.NextFloat(0f, spread);
 
     private bool Drives(PartyRole role)
-        => world.Party.Get(role) is { } member && world.Party.IsBotDriven(member);
+        => world.Party.Get(role) is { } member && world.Party.PlansFor(member);
 
     private Vector2 Live(PartyRole role)
         => world.Party.Get(role) is { } member ? new Vector2(member.Position.X, member.Position.Z) : Vector2.Zero;

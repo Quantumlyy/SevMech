@@ -5,6 +5,7 @@ using Dalamud.Game.Text;
 using System.Numerics;
 using AnoMech.Core;
 using AnoMech.Core.Game;
+using AnoMech.Core.Game.Ai;
 using AnoMech.Core.Game.Geometry;
 using AnoMech.Core.Game.Party;
 using AnoMech.Core.Map;
@@ -170,6 +171,12 @@ public sealed class SimWorld : ISimObject, IDisposable
         Plugin.ChatGui.Print(new XivChatEntry { Type = XivChatType.SystemMessage, Message = $"[SevMech] {text}" });
         Announced?.Invoke(text);
     }
+
+    // Every move the Ai issues to a seat, for a host whose peers walk its plan (see
+    // IMultiplayerReplayable.PeersFollowHostPlan).
+    public event Action<PlannedMove>? MovePlanned;
+
+    internal void ReportPlannedMove(PlannedMove move) => MovePlanned?.Invoke(move);
     
 
     private readonly List<(ushort StatusId, Action<SimCharacter> Handler)> deathRules = [];

@@ -29,6 +29,7 @@ public sealed class TopP3HelloWorldAi : IScenarioAi<TopP3HelloWorldState>
     private const float WalkUpAfter = 0.05f;
     private const float Standoff = 3f;
     private const float PickUpPatience = 5f;
+    private const float WalkPatience = 3f;
     private const float StackReach = 4.5f;
     private const float StackClear = 6.5f;
     private const float StackLead = 2.5f;
@@ -362,7 +363,7 @@ public sealed class TopP3HelloWorldAi : IScenarioAi<TopP3HelloWorldState>
         Vector2? heading = null;
         void Look()
         {
-            if (!Drives(local) || !IsAlive(local)) return;
+            if (!Drives(local) || !IsAlive(local) || world.Events.Elapsed > TowerCasts[patch + 1]) return;
             var blueUp = remotes.Any(remote => world.Party.Get(remote) is { } member && member.IsAlive() && member.HasStatus(StatusId.HWRemoteTether));
             if (world.Events.Elapsed < TethersLive[patch] + 0.5f || blueUp || AnyoneVulnerable())
             {
@@ -502,7 +503,8 @@ public sealed class TopP3HelloWorldAi : IScenarioAi<TopP3HelloWorldState>
                 continue;
             }
             var step = Math.Max(0, walk.Fires.FindLastIndex(at => at <= world.Events.Elapsed));
-            if (step == walk.Path.Count - 1 && Vector2.Distance(Live(role), walk.Path[^1]) < Arrived)
+            var arrivesBy = walk.Fires[0] + PromptMoveDelay + WalkLength(walk.Seen[role], walk.Path) / AiManager.RunSpeed + WalkPatience;
+            if ((step == walk.Path.Count - 1 && Vector2.Distance(Live(role), walk.Path[^1]) < Arrived) || world.Events.Elapsed > arrivesBy)
             {
                 walks.Remove(role);
                 continue;
@@ -652,7 +654,7 @@ public sealed class TopP3HelloWorldAi : IScenarioAi<TopP3HelloWorldState>
     private float Hesitation() => noise.NextFloat(0f, 0.25f);
 
     private bool Drives(PartyRole role)
-        => world.Party.Get(role) is { } member && world.Party.IsBotDriven(member);
+        => world.Party.Get(role) is { } member && world.Party.PlansFor(member);
 
     private bool IsAlive(PartyRole role) => world.Party.Get(role) is { } member && member.IsAlive();
 

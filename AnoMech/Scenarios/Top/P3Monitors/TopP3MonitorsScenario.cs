@@ -143,13 +143,14 @@ public sealed class TopP3MonitorsScenario : IMultiplayerReplayable
 
     public MpMessage? BuildReplayStateMessage()
         => LastState is { } s ? new TopP3MonitorsAiReplayStateMessage(
-            s.BossSide == CleaveSide.Left, s.Monitors.ToArray(), s.MonitorSides.Select(side => side == CleaveSide.Left).ToArray())
+            s.BossSide == CleaveSide.Left, s.Monitors.ToArray(), s.MonitorSides.Select(side => side == CleaveSide.Left).ToArray(),
+            world.Stream(TopP3MonitorsAi.NoiseStream).Seed)
         : null;
 
     public object? StartReplay(MpMessage message, int aiIndex, PartyRole myRole, SimWorld replayWorld)
     {
         if (message is not TopP3MonitorsAiReplayStateMessage msg) return null;
-        if (TopP3MonitorsState.FromNetworkReplay(msg.BossIsLeft, msg.Monitors, msg.MonitorsAreLeft) is not { } shadowState)
+        if (TopP3MonitorsState.FromNetworkReplay(msg.BossIsLeft, msg.Monitors, msg.MonitorsAreLeft, msg.NoiseSeed) is not { } shadowState)
             return null;
         ((IScenarioAi<TopP3MonitorsState>)AiStrats[aiIndex]).Run(shadowState, replayWorld);
         return shadowState;

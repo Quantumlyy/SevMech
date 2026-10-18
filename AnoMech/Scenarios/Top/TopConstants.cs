@@ -83,6 +83,26 @@ public static class TopConstants
         public const uint CosmoComet = 15727;         // 0x3D6F — P6 small comet
     }
 
+    public static class BNpcLayoutId
+    {
+        public const uint OmegaM = 0x91D426;
+        public const uint OmegaF = 0x91D427;
+        public const uint OmegaMClone = 0x91D42A;
+        public const uint OmegaFClone = 0x91D42B;
+        public const uint OpticalUnit = 0x91D42D;
+        public const uint OmegaMDynamis = 0x91E486;
+        public const uint OmegaFDynamis = 0x91E487;
+        public const uint OmegaM_3D69 = 0x91E48A;
+        public const uint BeetleHelper = 0x91E489;
+        public const uint FinalHelper = 0x946F2B;
+        public const uint RightArmUnit = 0x91E422;
+        public const uint LeftArmUnit = 0x91E421;
+        public const uint RearPowerUnit = 0x91E488;
+        public const uint RocketPunchYellow = 0x91D1E8;
+        public const uint RocketPunchBlue = 0x91D1E9;
+        public const uint AlphaOmega = 0x91E4E6;
+    }
+
     public static class BNpcNameId
     {
         public const uint OmegaMDynamis = 12257;
@@ -153,21 +173,11 @@ public static class TopConstants
         public const uint TowerEventId = 0x800375AC;
 
         // Sigma's tower spots on the 22.5°-offset ring each have their own layout, clockwise from NNE.
-        public const uint TowerRingLayoutId = 0x945286;
+        public static readonly uint[] TowerRingLayoutIds = [0x945286, 0x945287, 0x945288, 0x945289, 0x94528A, 0x94528B, 0x94528C, 0x94528D];
 
         public const uint IntermissionVoidzone = 2013217;           // 0x1EB821
-        // The instance director's event, which Program Loop's towers and the intermission void
-        // zone are bound to.
+        // The instance director's event, which the intermission void zone is bound to.
         public const uint DirectorEventId = TowerEventId;
-        // Program Loop's eight tower spots by cardinal (N, E, S, W): the clockwise-shifted spot,
-        // then the counter-clockwise one. A tower and its timer share their spot's id.
-        public static readonly uint[][] LoopTowerLayoutIds =
-        [
-            [0x91D93CU, 0x91D93BU],
-            [0x91D93EU, 0x91D93DU],
-            [0x91D941U, 0x91D940U],
-            [0x91D943U, 0x91D942U],
-        ];
     }
 
     public static class ActionId
