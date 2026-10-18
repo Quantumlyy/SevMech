@@ -176,18 +176,8 @@ public static class TopConstants
         public static readonly uint[] TowerRingLayoutIds = [0x945286, 0x945287, 0x945288, 0x945289, 0x94528A, 0x94528B, 0x94528C, 0x94528D];
 
         public const uint IntermissionVoidzone = 2013217;           // 0x1EB821
-        // The instance director's event, which Program Loop's towers and the intermission void
-        // zone are bound to.
+        // The instance director's event, which the intermission void zone is bound to.
         public const uint DirectorEventId = TowerEventId;
-        // Program Loop's eight tower spots by cardinal (N, E, S, W): the clockwise-shifted spot,
-        // then the counter-clockwise one. A tower and its timer share their spot's id.
-        public static readonly uint[][] LoopTowerLayoutIds =
-        [
-            [0x91D93CU, 0x91D93BU],
-            [0x91D93EU, 0x91D93DU],
-            [0x91D941U, 0x91D940U],
-            [0x91D943U, 0x91D942U],
-        ];
     }
 
     public static class ActionId

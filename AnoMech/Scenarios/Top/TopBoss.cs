@@ -23,7 +23,9 @@ public static class TopBoss
         if (party.Get(PartyRole.MainTank) is not { } tank || !tank.IsAlive()) return;
         var toTank = tank.Position - boss.Position;
         if (toTank.X * toTank.X + toTank.Z * toTank.Z < 1e-6f) return;
-        boss.SetRotation(MathUtil.StepRotation(boss.Rotation, MathF.Atan2(toTank.X, toTank.Z), radiansPerSecond * delta));
+        var rotation = MathUtil.StepRotation(boss.Rotation, MathF.Atan2(toTank.X, toTank.Z), radiansPerSecond * delta);
+        // Already facing it: a rotation set again would go to the client, and to peers, every frame.
+        if (MathF.Abs(rotation - boss.Rotation) > 1e-4f) boss.SetRotation(rotation);
     }
 
     // Final Omega's auto-attack on its main target, which it only reaches from its 12.5y hitbox

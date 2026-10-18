@@ -1,7 +1,13 @@
 using System.Collections.Generic;
 using System.Linq;
-using AnoMech.Scenarios.Top.P1Pantokrator;
-using AnoMech.Scenarios.Top.P1ProgramLoop;
+using AnoMech.Scenarios.Fru.P2DiamondDust;
+using AnoMech.Scenarios.Fru.P2LightRampant;
+using AnoMech.Scenarios.Fru.P3Apocalypse;
+using AnoMech.Scenarios.Fru.P3UltimateRelativity;
+using AnoMech.Scenarios.Fru.P4CrystallizeTime;
+using AnoMech.Scenarios.Fru.P4DarklitDragonsong;
+using AnoMech.Scenarios.Fru.P5FulgentBlade;
+using AnoMech.Scenarios.Fru.P5ParadiseRegained;
 using AnoMech.Scenarios.Top.P2PartySynergy;
 using AnoMech.Scenarios.Top.P3HelloWorld;
 using AnoMech.Scenarios.Top.P3Intermission;
@@ -79,8 +85,14 @@ public sealed class ScenarioCatalog
         new UmadP5CelestriadScenario(),
         new UmadP5ExaflaresScenario(),
         new UmadP5ForsakenNull(),
-        new TopP1ProgramLoopScenario(),
-        new TopP1PantokratorScenario(),
+        new FruP2DiamondDustScenario(),
+        new FruP2LightRampantScenario(),
+        new FruP3UltimateRelativityScenario(),
+        new FruP3ApocalypseScenario(),
+        new FruP4DarklitDragonsongScenario(),
+        new FruP4CrystallizeTimeScenario(),
+        new FruP5FulgentBladeScenario(),
+        new FruP5ParadiseRegainedScenario(),
         new TopP2PartySynergyScenario(),
         new TopP3IntermissionScenario(),
         new TopP3HelloWorldScenario(),

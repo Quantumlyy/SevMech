@@ -47,6 +47,8 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     }
 
     private readonly Dictionary<uint, Spawned> spawned = new();
+    // The local entity id each copy had, once gone: a status still names the actor that applied it.
+    private readonly Dictionary<uint, uint> departed = new();
     private readonly Dictionary<uint, SimTether> tethers = new();
     private readonly Dictionary<uint, uint> effectSequences = new();
     private readonly Queue<uint> effectOrder = new();
@@ -152,6 +154,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         arena.Clear();
         effectSequences.Clear();
         effectOrder.Clear();
+        departed.Clear();
     }
 
     // ── Actors ───────────────────────────────────────────────────────────────
@@ -225,7 +228,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     {
         if (actor == PacketActor.None) return NoTarget;
         if (Character(actor) is { Exists: true } chara) return chara.EntityId;
-        return spawned.GetValueOrDefault(actor)?.Object?.EntityId ?? NoTarget;
+        return spawned.GetValueOrDefault(actor)?.Object?.EntityId ?? (departed.TryGetValue(actor, out var gone) ? gone : NoTarget);
     }
 
     private GameObjectId? ObjectIdOf(uint actor)
@@ -269,6 +272,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
             return;
         }
         var enemy = natives.Adopting(chara, entityId, () => world.SpawnEnemy(config));
+        departed.Remove(p.Actor);
         spawned[p.Actor] = new Spawned { LocalEntityId = entityId, Character = chara, Enemy = enemy };
         Copied?.Invoke(entityId, p.Actor);
     }
@@ -305,6 +309,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
             return;
         }
         var prop = natives.Adopting(obj, () => world.SpawnEventObject(config));
+        departed.Remove(p.Actor);
         spawned[p.Actor] = new Spawned { LocalEntityId = obj.EntityId, Object = obj, Prop = prop };
         Copied?.Invoke(obj.EntityId, p.Actor);
     }
@@ -313,6 +318,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     {
         if (tethers.Remove(actor, out var tether)) tether.Despawn();
         if (!spawned.Remove(actor, out var copy)) return;
+        departed[actor] = copy.LocalEntityId;
         copy.Enemy?.Despawn();
         copy.Prop?.Despawn();
         copy.Character?.Despawn();

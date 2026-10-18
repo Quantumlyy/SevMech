@@ -21,7 +21,7 @@ public sealed partial class MultiplayerManager
         if (pendingSelfPoseSend is not (null or { IsCompleted: true })) return;
         var player = Plugin.Game.World.Party.Player;
         if (player == null) return;
-        pendingSelfPoseSend = relay!.SendAsync(new SelfPoseMessage(MyPeerId, player.Position.X, player.Position.Y, player.Position.Z, player.Rotation));
+        pendingSelfPoseSend = Send(new SelfPoseMessage(MyPeerId, player.Position.X, player.Position.Y, player.Position.Z, player.Rotation));
     }
 
     public void ReportAppliedEnemyStatus(IReadOnlyList<SimEnemy> enemies, ushort statusId, float duration)
@@ -30,14 +30,14 @@ public sealed partial class MultiplayerManager
         var hostIds = enemies.Select(replay.HostActorOf).Where(id => id != PacketActor.None).ToList();
         if (hostIds.Count == 0) return;
         DiagnosticLog.Info($"[Multiplayer] Peer: reporting applied status {statusId} on the host's enemies [{string.Join(",", hostIds.Select(id => $"0x{id:X}"))}].");
-        _ = relay.SendAsync(new PeerAppliedEnemyStatusMessage(MyPeerId, hostIds, statusId, duration));
+        _ = Send(new PeerAppliedEnemyStatusMessage(MyPeerId, hostIds, statusId, duration));
     }
 
     public void ReportAppliedRoleStatus(IReadOnlyList<PartyRole> roles, ushort statusId, float duration, ushort param)
     {
         if (IsHost || relay is not { IsConnected: true } || roles.Count == 0) return;
         DiagnosticLog.Info($"[Multiplayer] Peer: reporting applied status {statusId} on roles [{string.Join(",", roles)}] to host.");
-        _ = relay.SendAsync(new PeerAppliedRoleStatusMessage(MyPeerId, roles.ToList(), statusId, duration, param));
+        _ = Send(new PeerAppliedRoleStatusMessage(MyPeerId, roles.ToList(), statusId, duration, param));
     }
 
     public void ReportLimitBreak(uint actionId, LimitBreakAim aim)
@@ -45,7 +45,7 @@ public sealed partial class MultiplayerManager
         if (IsHost || relay is not { IsConnected: true } || !PeerInRun) return;
         DiagnosticLog.Info($"[Multiplayer] Peer: reporting limit break {actionId} to host, aimed from ({aim.Origin.X:F2},{aim.Origin.Z:F2}) "
                             + $"heading {aim.Heading:F3}{(aim.Location is { } at ? $" at ({at.X:F2},{at.Z:F2})" : "")}.");
-        _ = relay.SendAsync(new PeerLimitBreakMessage(MyPeerId, actionId, aim.Origin.X, aim.Origin.Y, aim.Origin.Z, aim.Heading,
+        _ = Send(new PeerLimitBreakMessage(MyPeerId, actionId, aim.Origin.X, aim.Origin.Y, aim.Origin.Z, aim.Heading,
             aim.Location?.X, aim.Location?.Y, aim.Location?.Z));
     }
 
@@ -149,7 +149,7 @@ public sealed partial class MultiplayerManager
         DiagnosticLog.Info("[Multiplayer] Peer is in the zone with the party seated -- telling the host.");
         foreach (var packet in earlyPackets) replay?.Apply(packet);
         earlyPackets.Clear();
-        _ = relay?.SendAsync(new EnteredMessage(MyPeerId));
+        _ = Send(new EnteredMessage(MyPeerId));
     }
 
     // Idempotent: a fresh start delivers both LobbyState(Started) and StartMessage. A peer that
@@ -160,14 +160,13 @@ public sealed partial class MultiplayerManager
         if (IsHost || peerRunStarted || clock is null) return;
         if (!running || !peerEnteredInstance || peerRunParams is not { } p) return;
         peerRunStarted = true;
-        hostClockAtStart = clock;
-        hostClockReceivedAt = Time.GetTimestamp();
-        eventClockSynced = false;
+        var receivedAt = Time.GetTimestamp();
         if (peerNatives != null) peerNatives.HostOwnsArena = true;
-        Plugin.Game.StartScenario(p, OnPeerStartResolved);
+        Plugin.Game.StartScenario(p, refusal => OnPeerStartResolved(refusal, clock, receivedAt));
     }
 
-    private void OnPeerStartResolved(string? refusal)
+    // The clock syncs to the host's once the run is up: starting it sets it to zero.
+    private void OnPeerStartResolved(string? refusal, RunClockState clock, long receivedAt)
     {
         if (!running) return;
         if (refusal != null)
@@ -176,6 +175,10 @@ public sealed partial class MultiplayerManager
             AbortStart(refusal);
             return;
         }
+        hostClockAtStart = clock;
+        hostClockReceivedAt = receivedAt;
+        eventClockSynced = false;
+        pingClock = null;
         DiagnosticLog.Info("[Multiplayer] Peer's run is up -- applying the host's packets and sending SelfPose.");
         peerNatives?.TagSeats(Plugin.Game.World.Party, RemoteSeats());
         TryStartDebugBotReplay();

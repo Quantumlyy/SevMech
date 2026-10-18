@@ -30,6 +30,8 @@ internal sealed class PacketRecorder
     private readonly List<GamePacket> pending = [];
     // Host entity ids of the actors spawned while recording: the only ones peers have.
     private readonly HashSet<uint> spawned = [];
+    // Those gone since: a status still names the one that applied it, as the client shows it.
+    private readonly HashSet<uint> departed = [];
     private readonly Dictionary<IBattleCharaProxy, (PartyRole Role, SeatKind Kind)> seats = new();
     private readonly Dictionary<PartyRole, (bool Status, bool Control)> afflictions = new();
     private readonly RecordingBattleChara localPlayer;
@@ -185,7 +187,7 @@ internal sealed class PacketRecorder
     private uint ActorOf(uint entityId)
     {
         if (entityId is 0 or NoTarget) return PacketActor.None;
-        if (spawned.Contains(entityId)) return entityId;
+        if (spawned.Contains(entityId) || departed.Contains(entityId)) return entityId;
         foreach (var (proxy, seat) in seats)
             if (proxy.EntityId == entityId) return PacketActor.Seat(seat.Role);
         return PacketActor.None;
@@ -264,6 +266,7 @@ internal sealed class PacketRecorder
     private void RecordDespawn(uint entityId)
     {
         if (!spawned.Remove(entityId)) return;
+        departed.Add(entityId);
         Add(new DespawnPacket(entityId));
     }
 
@@ -276,6 +279,7 @@ internal sealed class PacketRecorder
             SimAssets.WarnIfUnknown(SimAssetKind.ModelChara, config.ModelCharaId, "NPC spawn model");
             SimAssets.WarnIfUnknown(SimAssetKind.Layout, config.LayoutId, "NPC spawn layout");
             spawned.Add(entityId);
+            departed.Remove(entityId);
             Add(new SpawnNpcPacket(entityId, config.BNpcBaseId, config.NameId, config.Level, config.Targetable, config.EnemyList,
                 config.Visibility, config.ModelCharaId, config.InitialModeAttributeFlags, config.DisplayFlags, config.Engaged, config.LayoutId,
                 config.IsHostile, placement.Position.X, placement.Position.Y, placement.Position.Z, placement.Rotation, config.MaxHealth));
@@ -295,6 +299,7 @@ internal sealed class PacketRecorder
             SimAssets.WarnIfUnknown(SimAssetKind.Layout, config.LayoutId, "event object layout");
             SimAssets.WarnIfUnknown(SimAssetKind.EventId, (uint)config.EventId, "event object EventId");
             spawned.Add(obj.EntityId);
+            departed.Remove(obj.EntityId);
             Add(new SpawnObjPacket(obj.EntityId, config.EObjId, config.ObjectIndex, config.TargetableStatus, config.Hidden, config.EntityId,
                 config.LayoutId, (uint)config.EventId, ActorOf(config.OwnerId), config.GimmickId, config.Radius, config.FateId, config.EventState,
                 config.Arg2, config.TimelineState, placement.Position.X, placement.Position.Y, placement.Position.Z, placement.Rotation));
