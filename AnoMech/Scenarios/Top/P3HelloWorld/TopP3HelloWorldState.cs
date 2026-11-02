@@ -15,15 +15,17 @@ public enum HelloWorldRole { Defamation, Remote, Stack, Local }
 
 public sealed record RotColor(
     ushort RotStatusId, ushort PrepStatusId, ushort DebuggerStatusId, EnemyAction Explosion,
-    ushort TowerStatusId, EnemyAction Tower, EnemyAction TowerExpired)
+    ushort TowerStatusId, EnemyAction Tower, EnemyAction TowerExpired, EnemyAction TowerUnsoaked, EnemyAction TowerSoakedWithoutRot)
 {
     public static readonly RotColor Red = new(
         StatusId.HWRedRot, StatusId.HWPrepRedRot, StatusId.HWImmuneRedRot, TopActions.CriticalUnderflowBug,
-        StatusId.HWRedTower, TopActions.CascadingLatentDefect, TopActions.CascadingLatentDefectExpired);
+        StatusId.HWRedTower, TopActions.CascadingLatentDefect, TopActions.CascadingLatentDefectExpired,
+        TopActions.CascadingLatentDefectUnsoaked, TopActions.CascadingLatentDefectSoakedWithoutRot);
 
     public static readonly RotColor Blue = new(
         StatusId.HWBlueRot, StatusId.HWPrepBlueRot, StatusId.HWImmuneBlueRot, TopActions.CriticalPerformanceBug,
-        StatusId.HWBlueTower, TopActions.LatentPerformanceDefect, TopActions.LatentPerformanceDefectExpired);
+        StatusId.HWBlueTower, TopActions.LatentPerformanceDefect, TopActions.LatentPerformanceDefectExpired,
+        TopActions.LatentPerformanceDefectUnsoaked, TopActions.LatentPerformanceDefectSoakedWithoutRot);
 
     public RotColor Other => this == Red ? Blue : Red;
 

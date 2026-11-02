@@ -56,5 +56,9 @@ internal sealed class FakeLocalPlayerInput(FakeCharacter player) : ILocalPlayerI
         LimitBreakHandler.ResolveOwn(world, self, actionId, targetId, LastLimitBreakPress);
     }
 
+    public Func<uint, uint?>? AdjustActionId { get; set; }
+    public Func<ActionType, uint, int?>? AdjustCastTime { get; set; }
+    public Func<ActionType, uint, bool, uint?>? AdjustActionStatus { get; set; }
+
     public void Dispose() { }
 }

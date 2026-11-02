@@ -34,4 +34,12 @@ public interface ILocalPlayerInput : IDisposable
 
     // Where the player's last limit break was aimed, for the handler that resolves it.
     LimitBreakPress LastLimitBreakPress { get; }
+
+    // Asked whenever the client settles which action a button is, how long a spell casts and why an
+    // action can't be used, to stand in for state the firewall keeps from it; null keeps the game's
+    // own answer. AdjustActionStatus is asked only about a refusal, and 0 lifts it; its flag says
+    // whether a running recast counts (a press) or not (the hotbar, which shows it as a sweep).
+    Func<uint, uint?>? AdjustActionId { get; set; }
+    Func<ActionType, uint, int?>? AdjustCastTime { get; set; }
+    Func<ActionType, uint, bool, uint?>? AdjustActionStatus { get; set; }
 }
