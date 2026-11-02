@@ -9,19 +9,23 @@ using static AnoMech.Scenarios.Fru.P2DiamondDust.FruP2DiamondDustState;
 
 namespace AnoMech.Scenarios.Fru.P2DiamondDust;
 
-public sealed class FruP2DiamondDustAi : IScenarioAi<FruP2DiamondDustState>
+public sealed class FruP2DiamondDustAi(IFruP2DiamondDustRim rim) : IScenarioAi<FruP2DiamondDustState>
 {
-    public string Name => "NA · Partner Swap";
-    public string Group => "NA";
+    public string Name => rim.Name;
+    public string Group => rim.Group;
+
+    public const float EdgeRadius = 19f;
 
     private static readonly int[] Clocks = [0, 2, 6, 4, 5, 3, 7, 1];
     private const float SlideDistance = 32f;
     private const float SlideSeconds = 1f;
     private const float PuddleRadius = 6f;
-    private const float NeedleCircleRadius = 5f;
-    private const float NeedleLineHalfWidth = 2.5f;
-    private const float EdgeRadius = 19f;
-    private const float EdgeSearchOctants = 25f / 45f;
+    private const float HolyRadius = 18f;
+    private const float IceRadius = 17f;
+    private const int SlideSearchSteps = 720;
+    private const int NextSlideSearchSteps = 180;
+    private const float FirstSlideAt = 45.05f;
+    private const float SecondSlideAt = 47.4f;
 
     private FruP2DiamondDustState state = null!;
     private SimWorld world = null!;
@@ -34,9 +38,9 @@ public sealed class FruP2DiamondDustAi : IScenarioAi<FruP2DiamondDustState>
         puddles.Clear();
         var ai = new AiManager(world);
         ai.Move(15.3f, () => ByRole(KickSpot), arrivalTime: 20.6f);
-        ai.Move(20.7f, () => ByRole(StoneSpot), arrivalTime: 23.3f);
-        ai.Move(23.35f, () => ByRole(KnockbackSpot), jitter: 0f, arrivalTime: 27.4f);
-        ai.Move(29.05f, () => ByRole(NeedleSafeEdgeSpot), jitter: 0f, arrivalTime: 30.05f);
+        ai.Move(20.7f, () => ByRole(role => StoneSpot(state, role)), arrivalTime: 23.3f);
+        ai.Move(23.35f, () => ByRole(role => Point(rim.LandingOctant(state, role), 3)), jitter: 0f, arrivalTime: 27.4f);
+        ai.Move(29.05f, () => ByRole(role => Point(rim.LandingOctant(state, role), EdgeRadius)), jitter: 0f, arrivalTime: 30.05f);
         ai.Move(30.1f, () => ByRole(role => HolySpot(role, 0)), arrivalTime: 31.4f);
         for (var wave = 0; wave < HolyWaves; wave++)
         {
@@ -44,80 +48,36 @@ public sealed class FruP2DiamondDustAi : IScenarioAi<FruP2DiamondDustState>
             world.Events.Add(HolyAt(w) - FruHolyPuddles.SnapshotBeforeHit, () => RememberHolyPuddles(w));
             ai.Move(HolyAt(w), () => ByRole(role => HolySpot(role, w + 1)), arrivalTime: HolyAt(w + 1));
         }
-        ai.Move(HolyAt(HolyWaves), () => ByRole(IceSpot), arrivalTime: 39.9f);
+        ai.Move(HolyAt(HolyWaves), () => ByRole(role => Point(rim.IceOctant(state, role), IceRadius)), arrivalTime: 39.9f);
         world.Events.Add(39.9f, FaceAwayFromGaze);
-        world.Events.Add(IceStart + 0.2f, () => SlideBots(behind: false, recovery: true));
-        world.Events.Add(45.05f, () => SlideBots(behind: state.Stillness));
-        world.Events.Add(47.4f, () => SlideBots(behind: !state.Stillness));
+        world.Events.Add(IceStart + 0.7f, SlideToWhereBehindTheMirrorIsInReach);
+        world.Events.Add(FirstSlideAt, () => SlideBots(behind: state.Stillness, FirstSlideAt, nextSlideAt: state.Stillness ? null : SecondSlideAt));
+        world.Events.Add(SecondSlideAt, () => SlideBots(behind: !state.Stillness, SecondSlideAt, nextSlideAt: null));
         world.Events.Add(IceEnd, puddles.Clear);
         ai.Move(IceEnd + 0.3f, () => ByRole(_ => new Vector3(0, 0, 4)));
     }
 
-    private bool Cursed => (state.MirrorOctant - state.FirstIcicle + 8) % 4 == 0;
-
     private static bool GroupOne(PartyRole role) => ((int)role & 1) == 0;
 
-    private int Clock(PartyRole role)
+    private static int ClockOctantOfRequiredParity(FruP2DiamondDustState state, PartyRole role)
     {
         var original = Clocks[(int)role];
         var requiredParity = (state.FirstIcicle + (state.Marked(role) ? 1 : 0)) & 1;
         return (original + ((original & 1) == requiredParity ? 0 : (int)role < 4 ? 7 : 1)) % 8;
     }
 
-    private Vector3? KickSpot(PartyRole role) => Point(Clock(role), (state.Axe ? 16 : 0) + (state.Marked(role) ? 3 : 1));
+    private Vector3? KickSpot(PartyRole role) => Point(ClockOctantOfRequiredParity(state, role), (state.Axe ? 16 : 0) + (state.Marked(role) ? 3 : 1));
 
-    private Vector3? StoneSpot(PartyRole role)
-        => Point(Clock(role), state.Marked(role) ? state.Axe ? 19 : 8 : state.Axe ? 4 : 1);
+    public static Vector3 StoneSpot(FruP2DiamondDustState state, PartyRole role)
+        => Point(ClockOctantOfRequiredParity(state, role), state.Marked(role) ? state.Axe ? 19 : 8 : state.Axe ? 4 : 1);
 
-    private int KnockbackOctant(PartyRole role)
+    public static int KnockbackOctant(FruP2DiamondDustState state, PartyRole role)
     {
         var groupOne = state.FirstIcicle == 0 ? 0 : state.FirstIcicle + 4;
         return (groupOne + (GroupOne(role) ? 0 : 4)) % 8;
     }
 
-    private Vector3? KnockbackSpot(PartyRole role) => Point(NeedleSafeEdgeOctant(role), 3);
-
-    private Vector3? NeedleSafeEdgeSpot(PartyRole role) => Point(NeedleSafeEdgeOctant(role), EdgeRadius);
-
-    private float NeedleSafeEdgeOctant(PartyRole role)
-    {
-        var holyOctant = KnockbackOctant(role) + (Cursed ? 1f / 3 : 0);
-        var stars = Enum.GetValues<PartyRole>().Where(state.Marked).Select(r => StoneSpot(r)!.Value).ToList();
-        return Enumerable.Range(-50, 101)
-            .Select(step => holyOctant + step / 50f * EdgeSearchOctants)
-            .OrderByDescending(octant => NeedleClearance(Point(octant, EdgeRadius), stars))
-            .ThenBy(octant => MathF.Abs(octant - holyOctant))
-            .First();
-    }
-
-    private static float NeedleClearance(Vector3 spot, List<Vector3> stars)
-    {
-        var clearance = float.PositiveInfinity;
-        foreach (var star in stars)
-        {
-            var offset = spot - star;
-            clearance = MathF.Min(clearance, offset.Length() - NeedleCircleRadius);
-            for (var line = 0; line < 4; line++)
-            {
-                var along = Point(line, 1);
-                var across = MathF.Abs(offset.X * along.Z - offset.Z * along.X);
-                clearance = MathF.Min(clearance, across - NeedleLineHalfWidth);
-            }
-        }
-        return clearance;
-    }
-
-    private int RotationAroundRim(PartyRole role)
-    {
-        if (Cursed) return 1;
-        var clockwiseDestination = Point(KnockbackOctant(role) + 2, 1);
-        return Vector3.Dot(clockwiseDestination, state.MirrorPosition) < 0 ? 1 : -1;
-    }
-
-    private Vector3 HolySpot(PartyRole role, int step)
-        => Point(KnockbackOctant(role) + (Cursed ? 1f / 3 : 0) + RotationAroundRim(role) * step * 0.5f, 18);
-
-    private Vector3? IceSpot(PartyRole role) => HolySpot(role, Cursed ? 5 : 4) * (17f / 18);
+    private Vector3 HolySpot(PartyRole role, int step) => Point(rim.HolyOctant(state, role, step), HolyRadius);
 
     private void RememberHolyPuddles(int wave)
     {
@@ -125,8 +85,8 @@ public sealed class FruP2DiamondDustAi : IScenarioAi<FruP2DiamondDustState>
             if (world.Party.Get(healer) is { } member && member.IsAlive()) puddles.Add((wave, member.Position));
     }
 
-    private IEnumerable<Vector3> LivePuddles()
-        => puddles.Where(p => PuddleFadesAt(p.Wave) > world.Events.Elapsed).Select(p => p.Position);
+    private IEnumerable<Vector3> LivePuddles(float at)
+        => puddles.Where(p => PuddleFadesAt(p.Wave) > at).Select(p => p.Position);
 
     private IEnumerable<SimCharacter> Bots()
         => world.Party.ActiveMembers().Where(world.Party.IsBotDriven).ToList();
@@ -140,15 +100,29 @@ public sealed class FruP2DiamondDustAi : IScenarioAi<FruP2DiamondDustState>
         }
     }
 
-    private void SlideBots(bool behind, bool recovery = false)
+    private void SlideToWhereBehindTheMirrorIsInReach()
+    {
+        var behindAt = state.Stillness ? FirstSlideAt : SecondSlideAt;
+        foreach (var bot in Bots())
+        {
+            if (BehindMirror(bot.Position) || SlideDestination(bot.Position, behind: true, behindAt) is not null) continue;
+            if (SlideDestination(bot.Position, behind: false, world.Events.Elapsed, nextSlideAt: behindAt) is { } destination)
+                Slide(bot, destination);
+        }
+    }
+
+    private void Slide(SimCharacter bot, Vector3 destination)
+    {
+        AnoMech.Core.DiagnosticLog.Info($"[FruP2DiamondDustAi] Slide@{world.Events.Elapsed:F1}: {(bot as ISimPartyMember)?.Role} ({bot.Position.X:F1},{bot.Position.Z:F1}) -> ({destination.X:F1},{destination.Z:F1}).");
+        bot.IceSlideTo(destination, SlideSeconds);
+    }
+
+    private void SlideBots(bool behind, float at, float? nextSlideAt)
     {
         foreach (var bot in Bots())
         {
-            var skip = recovery
-                ? !Cursed || Vector3.Dot(bot.Position, state.MirrorPosition) <= 0
-                : BehindMirror(bot.Position) == behind;
-            if (skip || SlideDestination(bot.Position, behind, prepareNextSlide: recovery) is not { } destination) continue;
-            bot.IceSlideTo(destination, SlideSeconds);
+            if (BehindMirror(bot.Position) == behind || SlideDestination(bot.Position, behind, at, nextSlideAt) is not { } destination) continue;
+            Slide(bot, destination);
         }
     }
 
@@ -159,28 +133,32 @@ public sealed class FruP2DiamondDustAi : IScenarioAi<FruP2DiamondDustState>
             && Vector3.Dot(Vector3.Normalize(offset), Vector3.Normalize(state.MirrorPosition)) > MathF.Sqrt(0.5f);
     }
 
-    private Vector3? SlideDestination(Vector3 from, bool behind, bool prepareNextSlide = false)
+    private Vector3? SlideDestination(Vector3 from, bool behind, float at, float? nextSlideAt = null)
+        => BestSlideClearOfPuddlesLiveAt(from, behind, at, nextSlideAt, SlideSearchSteps).End;
+
+    private (Vector3? End, float Margin) BestSlideClearOfPuddlesLiveAt(Vector3 from, bool behind, float at, float? nextSlideAt, int steps)
     {
         Vector3? best = null;
         var bestMargin = float.NegativeInfinity;
-        var live = LivePuddles().ToList();
-        for (var degree = 0; degree < 720; degree++)
+        var live = LivePuddles(at).ToList();
+        for (var step = 0; step < steps; step++)
         {
-            var end = from + Point(degree / 90f, SlideDistance);
-            if (end.Length() > 19 || BehindMirror(end) != behind) continue;
+            var end = from + Point(step * 8f / steps, SlideDistance);
+            if (end.Length() > EdgeRadius || BehindMirror(end) != behind) continue;
             var clearance = live.Select(p => DistanceToSegment(p, from, end) - PuddleRadius).DefaultIfEmpty(20).Min();
             if (clearance < 0.35f) continue;
             var relative = end - state.MirrorPosition;
             var backDot = Vector3.Dot(Vector3.Normalize(relative), Vector3.Normalize(state.MirrorPosition));
             var coneMargin = (behind ? backDot - MathF.Sqrt(0.5f) : MathF.Sqrt(0.5f) - backDot) * relative.Length();
             var margin = MathF.Min(MathF.Min(20 - end.Length(), clearance), coneMargin);
-            if (margin > bestMargin && (!prepareNextSlide || SlideDestination(end, true) != null))
+            if (nextSlideAt is { } next) margin = MathF.Min(margin, BestSlideClearOfPuddlesLiveAt(end, true, next, null, NextSlideSearchSteps).Margin);
+            if (margin > bestMargin)
             {
                 bestMargin = margin;
                 best = end;
             }
         }
-        return best;
+        return (best, bestMargin);
     }
 
     private static float DistanceToSegment(Vector3 point, Vector3 from, Vector3 to)
@@ -189,8 +167,6 @@ public sealed class FruP2DiamondDustAi : IScenarioAi<FruP2DiamondDustState>
         var t = line.LengthSquared() > 0 ? Math.Clamp(Vector3.Dot(point - from, line) / line.LengthSquared(), 0, 1) : 0;
         return Vector3.Distance(point, from + t * line);
     }
-
-    private static Vector3 Point(float octant, float radius) => FruP2DiamondDustState.Point(octant, radius);
 
     private static IAiMove ByRole(Func<PartyRole, Vector3?> at)
         => AiMove.Create(Enum.GetValues<PartyRole>().Select(role => at(role) is { } p ? new Vector2(p.X, p.Z) : (Vector2?)null).ToArray()).NaturalOrder();

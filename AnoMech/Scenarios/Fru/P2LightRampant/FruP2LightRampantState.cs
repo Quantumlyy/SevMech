@@ -11,9 +11,8 @@ namespace AnoMech.Scenarios.Fru.P2LightRampant;
 // them neighbours on the loop marked for Powerful Light; two waves of orbs, north or south first;
 // Banish as pairs or spreads.
 //
-// Simplification: retail chains the six in a random loop, which the NA conga then sorts by
-// priority. Here the loop already is that conga order, so the bots and the player resolve it
-// alike.
+// The chains link each of the six to their neighbours around the boss, so the loop is the ring the
+// party stands in when they go out, counted clockwise from north; WeightSlot picks a spot on it.
 public sealed class FruP2LightRampantState
 {
     public const float CursesAt = 18.75f;
@@ -28,9 +27,7 @@ public sealed class FruP2LightRampantState
         [PartyRole.PhysRangedDps, PartyRole.RegenHealer, PartyRole.CasterDps, PartyRole.ShieldHealer,
          PartyRole.MeleeDpsA, PartyRole.MainTank, PartyRole.MeleeDpsB, PartyRole.OffTank];
 
-    // 0-5: the chained loop, alternating north and south group; 6-7: the hammer baiters.
-    private readonly PartyRole[] slots;
-
+    public IReadOnlyList<PartyRole> HammerBaiters { get; }
     public IReadOnlyList<PartyRole> InitiallySteeped { get; }
     public int WeightSlot { get; }
     public bool NorthOrbsFirst { get; }
@@ -43,30 +40,16 @@ public sealed class FruP2LightRampantState
         var duties = overrides.Duty.Resolve(playerRole);
         var baits = duties.Where(d => d.Value == LightRampantDuty.Bait).Select(d => d.Role);
         var tethers = duties.Where(d => d.Value == LightRampantDuty.Tether).Select(d => d.Role).ToList();
-        var puddles = baits.Concat(roles.Where(r => !tethers.Contains(r))).Concat(roles).Distinct().Take(2)
-                           .OrderBy(r => Array.IndexOf(PuddlePriority, r)).ToArray();
+        HammerBaiters = baits.Concat(roles.Where(r => !tethers.Contains(r))).Concat(roles).Distinct().Take(2)
+                             .OrderBy(r => Array.IndexOf(PuddlePriority, r)).ToArray();
         InitiallySteeped = overrides.InitiallySteeped ?? rng.Shuffle(Enum.GetValues<PartyRole>()).Take(4).ToList();
         WeightSlot = overrides.WeightSlot ?? rng.Next(6);
         NorthOrbsFirst = overrides.NorthOrbsFirst ?? rng.NextBool();
         Pairs = overrides.Pairs ?? rng.NextBool();
         SupportPairs = overrides.SupportPairs ?? rng.NextBool();
-
-        var north = new[] { PartyRole.OffTank, PartyRole.MainTank, PartyRole.ShieldHealer, PartyRole.RegenHealer }.Except(puddles).ToList();
-        var south = new[] { PartyRole.PhysRangedDps, PartyRole.CasterDps, PartyRole.MeleeDpsA, PartyRole.MeleeDpsB }.Except(puddles).ToList();
-        if (north.Count == 4) { south.Add(north[0]); north.RemoveAt(0); }
-        if (south.Count == 4) { north.Add(south[0]); south.RemoveAt(0); }
-        slots = [.. north, .. south, .. puddles];
     }
 
-    public PartyRole Slot(int index) => slots[index];
-    public int Index(PartyRole role) => Array.IndexOf(slots, role);
-    public bool BaitsHammer(PartyRole role) => Index(role) >= 6;
-    public bool NorthGroup(PartyRole role) => Index(role) % 2 == 0;
-
-    public IEnumerable<PartyRole> Chained => slots.Take(6);
-    public (PartyRole, PartyRole) ChainLink(int index) => (slots[index], slots[(index + 1) % 6]);
-    public IEnumerable<PartyRole> HammerBaiters => slots.Skip(6);
-    public PartyRole[] Weights => [slots[WeightSlot], slots[(WeightSlot + 1) % 6]];
+    public bool BaitsHammer(PartyRole role) => HammerBaiters.Contains(role);
 
     public int InitialStacks(PartyRole role) => (InitiallySteeped.Contains(role) ? 1 : 0) + (BaitsHammer(role) ? 1 : 0);
 

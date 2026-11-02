@@ -18,16 +18,18 @@ public sealed class FruP2LightRampantAi : IScenarioAi<FruP2LightRampantState>
 
     private FruP2LightRampantState state = null!;
     private SimWorld world = null!;
+    private PartyRole[] conga = [];
 
     public void Run(FruP2LightRampantState stateParam, SimWorld worldParam)
     {
         state = stateParam;
         world = worldParam;
+        conga = CongaByPriorityThenBaiters();
         var ai = new AiManager(world);
         ai.Move(3f, () => ByRole(Preposition), arrivalTime: 8.75f);
         ai.Move(9.75f, () => ByRole(role => state.BaitsHammer(role) ? Lineup(role) : null), arrivalTime: HammerSnapshotAt(0));
         ai.Move(10.75f, () => ByRole(role => state.BaitsHammer(role) ? null : Lineup(role)), arrivalTime: 12.3f);
-        ai.Move(12.3f, () => ByRole(role => state.BaitsHammer(role) ? null : Tower(state.Index(role))), jitter: 0f, arrivalTime: CursesAt);
+        ai.Move(12.3f, () => ByRole(role => state.BaitsHammer(role) ? null : Tower(Index(role))), jitter: 0f, arrivalTime: CursesAt);
         for (var wave = 0; wave < HammerWaves - 1; wave++)
         {
             var dropped = wave + 1;
@@ -47,6 +49,18 @@ public sealed class FruP2LightRampantAi : IScenarioAi<FruP2LightRampantState>
 
     private static float HammerSnapshotAt(int wave) => HammerAt(wave) - FruHolyPuddles.SnapshotBeforeHit;
 
+    private PartyRole[] CongaByPriorityThenBaiters()
+    {
+        var north = new[] { PartyRole.OffTank, PartyRole.MainTank, PartyRole.ShieldHealer, PartyRole.RegenHealer }.Where(r => !state.BaitsHammer(r)).ToList();
+        var south = new[] { PartyRole.PhysRangedDps, PartyRole.CasterDps, PartyRole.MeleeDpsA, PartyRole.MeleeDpsB }.Where(r => !state.BaitsHammer(r)).ToList();
+        if (north.Count == 4) { south.Add(north[0]); north.RemoveAt(0); }
+        if (south.Count == 4) { north.Add(south[0]); south.RemoveAt(0); }
+        return [.. north, .. south, .. state.HammerBaiters];
+    }
+
+    private int Index(PartyRole role) => Array.IndexOf(conga, role);
+    private bool NorthGroup(PartyRole role) => Index(role) % 2 == 0;
+
     private int Stacks(PartyRole role) => world.Party.Get(role)?.FindStatus(StatusId.Lightsteeped)?.Stacks ?? 0;
 
     private static Vector3 FromSim(float north, float east) => new(east * S, 0, -north * S);
@@ -63,7 +77,7 @@ public sealed class FruP2LightRampantAi : IScenarioAi<FruP2LightRampantState>
         _ => FromSim(-14.5f, -4.5f),
     };
 
-    private Vector3? Lineup(PartyRole role) => state.Index(role) switch
+    private Vector3? Lineup(PartyRole role) => Index(role) switch
     {
         0 => FromSim(7, 13.7f),
         1 => FromSim(16.1f, 0),
@@ -84,46 +98,28 @@ public sealed class FruP2LightRampantAi : IScenarioAi<FruP2LightRampantState>
             3 => FromSim(15, -15),
             _ => FromSim(30, -15),
         };
-        return state.Index(role) == 6 ? spot : -spot;
+        return Index(role) == 6 ? spot : -spot;
     }
 
-    private Vector3? GroupSpot(PartyRole role) => FromSim(state.NorthGroup(role) ? 45 : -45, 0);
+    private Vector3? GroupSpot(PartyRole role) => FromSim(NorthGroup(role) ? 45 : -45, 0);
 
-    private Vector3? Intermediate(PartyRole role) => FromSim(43, 10.8f) * (state.NorthGroup(role) ? 1 : -1);
+    private Vector3? Intermediate(PartyRole role) => FromSim(43, 10.8f) * (NorthGroup(role) ? 1 : -1);
 
     private Vector3? OrbSafeSpot(PartyRole role, bool first)
     {
         var wideNorth = first == state.NorthOrbsFirst;
-        return state.NorthGroup(role)
+        return NorthGroup(role)
             ? FromSim(wideNorth ? 36.2f : 42, wideNorth ? 26.6f : 16.7f)
             : FromSim(wideNorth ? -42 : -36.2f, wideNorth ? -16.7f : -26.6f);
     }
 
-    private Vector3 MiddleWait(PartyRole role) => state.NorthGroup(role)
+    private Vector3 MiddleWait(PartyRole role) => NorthGroup(role)
         ? state.NorthOrbsFirst ? FromSim(16.1f, 0) : FromSim(7, 12)
         : state.NorthOrbsFirst ? FromSim(-7, -12) : FromSim(-16.1f, 0);
 
-    private Vector3? BanishSpot(PartyRole role) => state.Pairs && (int)role < 4
-        ? ClockSpot(role switch
-        {
-            PartyRole.MainTank => PartyRole.PhysRangedDps,
-            PartyRole.OffTank => PartyRole.CasterDps,
-            PartyRole.RegenHealer => PartyRole.MeleeDpsA,
-            _ => PartyRole.MeleeDpsB,
-        })
-        : ClockSpot(role);
+    private Vector3? BanishSpot(PartyRole role) => state.Pairs ? FruP2LightRampantClock.PairSpot(role) : ClockSpot(role);
 
-    private static Vector3? ClockSpot(PartyRole role) => role switch
-    {
-        PartyRole.MainTank => FromSim(18, 0),
-        PartyRole.OffTank => FromSim(0, 18),
-        PartyRole.RegenHealer => FromSim(0, -18),
-        PartyRole.ShieldHealer => FromSim(-18, 0),
-        PartyRole.MeleeDpsA => FromSim(-12, -12),
-        PartyRole.MeleeDpsB => FromSim(-12, 12),
-        PartyRole.PhysRangedDps => FromSim(12, -12),
-        _ => FromSim(12, 12),
-    };
+    private static Vector3? ClockSpot(PartyRole role) => FruP2LightRampantClock.Spot(role);
 
     private static IAiMove ByRole(Func<PartyRole, Vector3?> at)
         => AiMove.Create(Enum.GetValues<PartyRole>().Select(role => at(role) is { } p ? new Vector2(p.X, p.Z) : (Vector2?)null).ToArray()).NaturalOrder();
