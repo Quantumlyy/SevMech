@@ -55,11 +55,13 @@ public static class TopActions
     private static EnemyAction SuperliminalSteelSide(uint actionId) => new(actionId)
     {
         Cast = new() { OmenDelay = Duration.OmegaAttackOmenDelay, AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.48f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction BeyondDefense = new(ActionId.BeyondDefenseAOE)
     {
+        Timing = new() { DamageDelay = 0.76f },
         Effects =
         [
             OnOthers(Damage(Lethal)),
@@ -70,6 +72,7 @@ public static class TopActions
 
     public static readonly EnemyAction PilePitch = new(ActionId.PilePitch)
     {
+        Timing = new() { DamageDelay = 0.8f },
         Effects = [Damage(MagicVulns, split: Stack(3)), ApplyRuin(ComeRuin, 2, 6.96f)],
     };
 
@@ -111,6 +114,7 @@ public static class TopActions
     {
         Cast = new() { AnimationLock = 1.1f },
         Area = new() { Size = MathF.PI / 3f },
+        Timing = new() { DamageDelay = 0.48f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
@@ -169,27 +173,32 @@ public static class TopActions
 
     public static readonly EnemyAction HyperPulseCharging = new(ActionId.HyperPulseDeltaCharging)
     {
+        Timing = new() { DamageDelay = 0.79f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction HyperPulseShoot = new(ActionId.HyperPulseDeltaShoot)
     {
+        Timing = new() { DamageDelay = 0.49f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
     // -- Delta-specific --
     public static readonly EnemyAction RunMiDeltaVersion = new(ActionId.RunMiDeltaVersion)
     {
+        Timing = new() { DamageDelay = 1.15f },
         Effects = [Damage(MagicVulns)],
     };
 
     public static readonly EnemyAction DeltaExplosion = new(ActionId.DeltaExplosion)
     {
+        Timing = new() { DamageDelay = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
     public static readonly EnemyAction DeltaUnmitigatedExplosion = new(ActionId.DeltaUnmitigatedExplosion)
     {
+        Timing = new() { DamageDelay = 1.1f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
@@ -205,6 +214,7 @@ public static class TopActions
 
     public static readonly EnemyAction HwTetherBreak = new(ActionId.HwTetherBreak)
     {
+        Timing = new() { DamageDelay = 0.63f },
         Effects =
         [
             Damage(MagicVulns),
@@ -215,6 +225,7 @@ public static class TopActions
 
     public static readonly EnemyAction HwTetherFail = new(ActionId.HwTetherFail)
     {
+        Timing = new() { DamageDelay = 0.63f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
@@ -237,10 +248,10 @@ public static class TopActions
     };
 
     // -- Hello World --
-    // Above the soaks, whose FollowUp captures it at initialization.
     public static readonly EnemyAction HelloWorldFail = new(ActionId.HelloWorldFail)
     {
         Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.63f },
         Effects = [Damage(MagicVulns, Lethal)],
         DeathExplanation = "Failed Hello World mechanic",
     };
@@ -256,10 +267,9 @@ public static class TopActions
         Timing = new() { DamageDelay = damageDelay },
         Effects =
         [
-            Damage(MagicVulns),
-            ApplyStatusOrOverload(StatusId.QuickeningDynamis, maxStacks: 3),
+            Damage(MagicVulns, split: Exactly(1)),
+            ApplyStatus(StatusId.QuickeningDynamis, 0f),
             ApplyStatus(StatusId.MagicVulnerabilityUp, 4.96f),
-            FollowUp(HelloWorldFail, when: ctx => ctx.Hits.Count != 1 || ctx.Hits.Any(ctx.IsKilled)),
         ],
     };
 
@@ -267,6 +277,7 @@ public static class TopActions
     public static readonly EnemyAction OpticalLaser = new(ActionId.OpticalLaser)
     {
         Cast = new() { AnimationLock = 1.1f },
+        Timing = new() { DamageDelay = 0.48f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 
@@ -373,23 +384,25 @@ public static class TopActions
     // A tower's hit leaves no vulnerability; its debuff is cleansed by that colour's rot running
     // out on the holder. It snapshots with its effect, not at the bar's end: the Christmas tether
     // broken as the last patch's tethers go live leaves a vulnerability that has only just run out.
-    public static readonly EnemyAction CascadingLatentDefect =
-        HelloWorldTower(ActionId.CascadingLatentDefect, ActionId.CascadingLatentDefectUnsoaked, StatusId.HWRedRot, StatusId.HWRedTower);
-    public static readonly EnemyAction LatentPerformanceDefect =
-        HelloWorldTower(ActionId.LatentPerformanceDefect, ActionId.LatentPerformanceDefectUnsoaked, StatusId.HWBlueRot, StatusId.HWBlueTower);
+    public static readonly EnemyAction CascadingLatentDefect = HelloWorldTower(ActionId.CascadingLatentDefect, StatusId.HWRedTower);
+    public static readonly EnemyAction LatentPerformanceDefect = HelloWorldTower(ActionId.LatentPerformanceDefect, StatusId.HWBlueTower);
 
-    private static EnemyAction HelloWorldTower(uint actionId, uint unsoakedActionId, ushort rotStatusId, ushort towerStatusId) => new(actionId)
+    private static EnemyAction HelloWorldTower(uint actionId, ushort towerStatusId) => new(actionId)
     {
         Cast = new() { AnimationLock = 1.1f },
         Timing = new() { ResolveSnapshotOffset = 0.28f, DamageDelay = 0.63f },
-        Effects =
-        [
-            Damage(MagicVulns),
-            ApplyStatus(towerStatusId, 10f, delayToEffectResult: true),
-            FollowUp(HelloWorldFailure(unsoakedActionId, "tower unsoaked"), when: ctx => ctx.Hits.Count == 0),
-            FollowUp(HelloWorldFailure(unsoakedActionId, "tower soaked without its rot"), when: ctx => ctx.Hits.Any(soaker => !soaker.HasStatus(rotStatusId))),
-        ],
+        Effects = [Damage(MagicVulns), ApplyStatus(towerStatusId, 10f, delayToEffectResult: true)],
     };
+
+    // Cast by the tower's helper as its hit lands with no one in it, or on a soaker without its rot.
+    public static readonly EnemyAction CascadingLatentDefectUnsoaked =
+        HelloWorldFailure(ActionId.CascadingLatentDefectUnsoaked, "tower unsoaked");
+    public static readonly EnemyAction CascadingLatentDefectSoakedWithoutRot =
+        HelloWorldFailure(ActionId.CascadingLatentDefectUnsoaked, "tower soaked without its rot");
+    public static readonly EnemyAction LatentPerformanceDefectUnsoaked =
+        HelloWorldFailure(ActionId.LatentPerformanceDefectUnsoaked, "tower unsoaked");
+    public static readonly EnemyAction LatentPerformanceDefectSoakedWithoutRot =
+        HelloWorldFailure(ActionId.LatentPerformanceDefectUnsoaked, "tower soaked without its rot");
 
     public static readonly EnemyAction CascadingLatentDefectExpired =
         HelloWorldFailure(ActionId.CascadingLatentDefectExpired, "tower debuff ran out before its rot did");
@@ -608,6 +621,7 @@ public static class TopActions
         Cast = new() { AnimationLock = 1.1f },
         Timing = new() { DamageDelay = 0.6f },
         Effects = [Damage(MagicVulns, split: Stack(4)), ApplyStatus(StatusId.MagicVulnerabilityUp, 1.96f)],
+        ShownAs = BNpcNameId.OmegaM,
     };
 
     // -- P6 Wave Cannon 2 --
@@ -630,6 +644,7 @@ public static class TopActions
     public static readonly EnemyAction CosmoArrowLine = new(ActionId.CosmoArrowDamage)
     {
         Cast = new() { AnimationLock = 2.1f },
+        Timing = new() { DamageDelay = 0.63f },
         Effects = [Damage(MagicVulns, Lethal)],
     };
 

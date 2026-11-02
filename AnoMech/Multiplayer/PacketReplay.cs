@@ -24,10 +24,11 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     private const uint NoTarget = 0xE0000000;
     private const uint SetTetherCategory = 0x23;
     private const uint ClearTetherCategory = 0x2F;
-    private const uint TargetCategory = 0x32;
     private const uint MarkingCategory = 0x1F6;
     private const uint LimitBreakGaugeCategory = 0x1F9;
     private const int StatusSlots = 60;
+    // As many as a spawn packet carries.
+    private const int SpawnStatuses = 30;
     private const int SignCount = 17;
     private const int MaxEffectTargets = 64;
     private const int MaxEntriesPerTarget = 8;
@@ -47,8 +48,9 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     }
 
     private readonly Dictionary<uint, Spawned> spawned = new();
-    // The local entity id each copy had, once gone: a status still names the actor that applied it.
-    private readonly Dictionary<uint, uint> departed = new();
+    // Each status's source as this client was first shown it, kept while the status lasts: the
+    // host's list goes on naming an applier that has despawned, or whose id a later spawn took.
+    private readonly Dictionary<(uint Actor, ushort StatusId, uint Source), uint> statusSources = new();
     private readonly Dictionary<uint, SimTether> tethers = new();
     private readonly Dictionary<uint, uint> effectSequences = new();
     private readonly Queue<uint> effectOrder = new();
@@ -77,11 +79,24 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         return PacketActor.None;
     }
 
+    // An actor here, by its GameObjectId, as the host's packets name it.
+    public uint HostActorOfObject(ulong gameObjectId)
+    {
+        var entityId = (uint)gameObjectId;
+        if (entityId is 0 or NoTarget) return PacketActor.None;
+        foreach (var (role, member) in world.Party.FilledSlots())
+            if (member.EntityId == entityId) return PacketActor.Seat(role);
+        foreach (var (actor, copy) in spawned)
+            if (copy.LocalEntityId == entityId) return actor;
+        return PacketActor.None;
+    }
+
     // The host's enemy (by its entity id) or seat, as this client's world has it.
     public SimCharacter? MirrorOfHost(uint actor) => actor == PacketActor.None ? null : MirrorOf(actor);
 
     public void Apply(GamePacket packet)
     {
+        if (packet.ShownBy == myRole) return;
         switch (packet)
         {
             case SpawnNpcPacket p: SpawnNpc(p); return;
@@ -154,7 +169,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         arena.Clear();
         effectSequences.Clear();
         effectOrder.Clear();
-        departed.Clear();
+        statusSources.Clear();
     }
 
     // ── Actors ───────────────────────────────────────────────────────────────
@@ -228,7 +243,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     {
         if (actor == PacketActor.None) return NoTarget;
         if (Character(actor) is { Exists: true } chara) return chara.EntityId;
-        return spawned.GetValueOrDefault(actor)?.Object?.EntityId ?? (departed.TryGetValue(actor, out var gone) ? gone : NoTarget);
+        return spawned.GetValueOrDefault(actor)?.Object?.EntityId ?? NoTarget;
     }
 
     private GameObjectId? ObjectIdOf(uint actor)
@@ -265,14 +280,14 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         var placement = new Placement(position, NetGuard.Rotation(p.Rotation));
         var config = new EnemySpawnConfig(p.BNpcBaseId, p.NameId, p.Level, p.Targetable, p.EnemyList, p.Visibility,
             world.Coordinates.ToLocal(placement), p.ModelCharaId, p.InitialModeAttributeFlags, p.DisplayFlags, p.Engaged, p.LayoutId,
-            Math.Min(p.MaxHealth, NetGuard.MaxHp), p.IsHostile);
+            Math.Min(p.MaxHealth, NetGuard.MaxHp), p.IsHostile,
+            p.Appearance, p.Statuses is { } statuses ? NetGuard.Cap(statuses, SpawnStatuses).ToList() : null, p.ModelState, p.ModelScale);
         if (natives.RealCharas.SpawnBattleNpcFromPacket(config, placement, out var entityId) is not { } chara)
         {
             DiagnosticLog.Warn($"[Multiplayer] Peer: the host's BNpcBase {p.BNpcBaseId} (0x{p.Actor:X}) didn't spawn here -- its packets will be dropped.");
             return;
         }
         var enemy = natives.Adopting(chara, entityId, () => world.SpawnEnemy(config));
-        departed.Remove(p.Actor);
         spawned[p.Actor] = new Spawned { LocalEntityId = entityId, Character = chara, Enemy = enemy };
         Copied?.Invoke(entityId, p.Actor);
     }
@@ -309,7 +324,6 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
             return;
         }
         var prop = natives.Adopting(obj, () => world.SpawnEventObject(config));
-        departed.Remove(p.Actor);
         spawned[p.Actor] = new Spawned { LocalEntityId = obj.EntityId, Object = obj, Prop = prop };
         Copied?.Invoke(obj.EntityId, p.Actor);
     }
@@ -317,8 +331,8 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
     private void Despawn(uint actor)
     {
         if (tethers.Remove(actor, out var tether)) tether.Despawn();
+        ForgetStatusSources(actor, null);
         if (!spawned.Remove(actor, out var copy)) return;
-        departed[actor] = copy.LocalEntityId;
         copy.Enemy?.Despawn();
         copy.Prop?.Despawn();
         copy.Character?.Despawn();
@@ -368,7 +382,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         if (spawned.GetValueOrDefault(actor)?.Enemy is { } enemy)
             enemy.SetPosition(new Placement(local, rotation));
         else if (PacketActor.IsSeat(actor, out var role) && role != myRole && world.Party.Get(role) is SimNetworkPuppet puppet)
-            puppet.ApplyNetworkPose(local, rotation);
+            puppet.ApplyNetworkPose(local, rotation, Vector3.Zero, jumping: false);
     }
 
     private void Cast(CastPacket p)
@@ -388,7 +402,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         if (Character(p.Actor) is not { } caster) return;
         var targets = NetGuard.Cap(p.Targets, MaxEffectTargets)
             .Select(t => new ActionEffectTarget(ObjectIdOf(t.Target) ?? new GameObjectId { ObjectId = NoTarget, Type = 0 },
-                NetGuard.Cap(t.Effects, MaxEntriesPerTarget).ToList()))
+                t.Effects == null ? null : NetGuard.Cap(t.Effects, MaxEntriesPerTarget).ToList()))
             .ToList();
         var sequence = caster.ReceiveActionEffect(new ActionEffectData(p.ActionId, p.ActionType, NetGuard.Clamp(p.AnimationLock, 0f, 60f),
             p.SpellId, p.AnimationVariation, p.Flags, NetGuard.Rotation(p.Rotation), position, ObjectIdOf(p.AnimationTarget),
@@ -436,7 +450,7 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
 
     private void ControlTarget(ControlTargetPacket p)
     {
-        if (p.Args.Length != 4 || p.Category is not (TargetCategory or MarkingCategory)) return;
+        if (p.Args.Length != 4 || !PacketRules.TargetControls.ContainsKey(p.Category)) return;
         if (p.Category == MarkingCategory && p.Args[0] >= SignCount) return;
         var args = p.Args.ToArray();
         if (p.ArgIndex is >= 0 and < 4) args[p.ArgIndex] = EntityOf(p.ArgActor);
@@ -444,14 +458,34 @@ internal sealed class PacketReplay(PeerNatives natives, SimWorld world, PartyRol
         Character(p.Actor)?.ActorControlTarget(p.Category, target, args[0], args[1], args[2], args[3]);
     }
 
+    private uint StatusSource(uint actor, ushort statusId, uint source)
+    {
+        if (source == PacketActor.None) return 0;
+        if (statusSources.TryGetValue((actor, statusId, source), out var shown)) return shown;
+        var local = EntityOf(source) is var id and not NoTarget ? id : 0;
+        if (local != 0) statusSources[(actor, statusId, source)] = local;
+        return local;
+    }
+
+    // Those `actor` no longer holds; all of them for null.
+    private void ForgetStatusSources(uint actor, HashSet<(uint, ushort, uint)>? listed)
+    {
+        foreach (var key in statusSources.Keys.Where(k => k.Actor == actor && listed?.Contains(k) != true).ToList())
+            statusSources.Remove(key);
+    }
+
     private void StatusList(StatusListPacket p)
     {
         if (Character(p.Actor) is not { } chara) return;
         var slots = new StatusSlot[StatusSlots];
+        var listed = new HashSet<(uint, ushort, uint)>();
         foreach (var s in NetGuard.Cap(p.Slots, StatusSlots))
             if (s.Slot < StatusSlots)
-                slots[s.Slot] = new StatusSlot(s.StatusId, s.Param, NetGuard.Clamp(s.RemainingTime, 0f, 86_400f),
-                    s.Source == PacketActor.None ? 0 : EntityOf(s.Source) is var source and not NoTarget ? source : 0);
+            {
+                listed.Add((p.Actor, s.StatusId, s.Source));
+                slots[s.Slot] = new StatusSlot(s.StatusId, s.Param, NetGuard.Clamp(s.RemainingTime, 0f, 86_400f), StatusSource(p.Actor, s.StatusId, s.Source));
+            }
+        ForgetStatusSources(p.Actor, listed);
         var health = Scale(p.Health, p.MaxHealth, chara.MaxHealth);
         if (IsOurSeat(p.Actor)) natives.LocalPlayer.ApplyHostStatuses(slots, health, p.Mana, p.Shield);
         else chara.ReceiveStatusList(slots, health, p.Mana, p.Shield);

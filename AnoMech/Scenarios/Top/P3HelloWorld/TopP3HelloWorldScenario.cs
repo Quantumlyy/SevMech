@@ -51,6 +51,7 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
     // place breaks it no sooner.
     private const float TetherFirstCheck = 0.13f;
     private const float PatchResolveDelay = 10f;
+    private const int TowersPerPatch = 4;
 
     private SimWorld world = null!;
     private SimParty party = null!;
@@ -66,7 +67,8 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
     private readonly List<TowerDebuff> towerDebuffs = [];
     private TopHelpers? towerHelpers;
     private TopHelpers? burstHelpers;
-    private readonly EnemyActionCast?[] towerCasts = new EnemyActionCast?[4];
+    // Each burst's holder, by the helper casting it, until its hit resolves.
+    private readonly Dictionary<SimEnemy, SimCharacter> burstTargets = new();
     private readonly List<SimTether> prepTethers = [];
     private readonly List<SimTether> localTethers = [];
     private readonly List<SimTether> remoteTethers = [];
@@ -90,7 +92,7 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
         towerDebuffs.Clear();
         towerHelpers = null;
         burstHelpers = null;
-        Array.Clear(towerCasts);
+        burstTargets.Clear();
         prepTethers.Clear();
         localTethers.Clear();
         remoteTethers.Clear();
@@ -157,8 +159,6 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
     public void Tick(float delta, float elapsed)
     {
         TopBoss.TurnToMainTank(party, omega, TopBoss.FinalOmegaTurnSpeed, delta);
-        TickTethers(remoteTethers, tether => tether.StretchGt(Geometry.HwTetherBreakDistance));
-        TickTethers(localTethers, tether => tether.StretchLt(Geometry.HwTetherBreakDistance));
         DebugExpiredBugs();
         ExplodeExpiredRots();
         SpreadRots();
@@ -226,7 +226,7 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
 
     // The loop needs every player for every patch. Put off to the next frame, so a raidwide's deaths
     // each keep their own reason, and a tether whose end just died fails by its own hit.
-    private void WipeForADeath(PartyRole role, string cause, uint? actionId)
+    private void WipeForADeath(PartyRole role, string cause, uint? actionId, ushort? statusId)
     {
         if (wiped || loopWipe is not null || Plugin.Game is not { } game || game.ActiveScenario != this) return;
         var now = world.Events.Elapsed;
@@ -303,20 +303,39 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
         if (remotes.Length == 2) prepTethers.Add(world.Tether(remotes[0], remotes[1], TetherId.HWPrepRemote));
     }
 
-    // The towers' bars run beside Omega's; each tower's hit lands on whoever stands in it. The
-    // patch resolves from the same moment as the towers' casts, so it reads their hits whatever
-    // the frame length.
+    // The towers' bars run beside Omega's; each tower's hit lands on whoever stands in it
+    // (SoakTower), just before the patch resolves.
     private void CastPatch(int patch)
     {
         FaceMainTank();
         omega?.Cast(ActionId.LatentDefect, animationLock: 4.1f);
         var towers = state.Towers[patch];
-        for (var i = 0; i < towerCasts.Length; i++)
+        for (var i = 0; i < TowersPerPatch; i++)
         {
             var tower = new Placement(towers.Position(i), 0f).Face(Vector3.Zero);
-            towerCasts[i] = towerHelpers?.At(i, tower)?.Cast(towers.ColorOf(i).Tower);
+            towerHelpers?.At(i, tower)?.Cast(towers.ColorOf(i).Tower);
         }
         world.Events.Add(PatchResolveDelay, () => ResolvePatch(patch));
+    }
+
+    public void OnActionResolved(ActionResolved resolved)
+    {
+        if (TowerColorOf(resolved.Action) is { } color) SoakTower(resolved, color);
+        else if (resolved.Action == Actions.CriticalSynchronizationBug) PassBugs(resolved, StatusId.HWImmuneStack, StatusId.HWStack, stackHolders);
+        else if (resolved.Action == Actions.CriticalOverflowBug) PassBugs(resolved, StatusId.HWImmuneDefamation, StatusId.HWDefamation, defamationHolders);
+    }
+
+    private static RotColor? TowerColorOf(EnemyAction action)
+        => action == RotColor.Red.Tower ? RotColor.Red : action == RotColor.Blue.Tower ? RotColor.Blue : null;
+
+    // Its soakers carry the tower debuff; no soaker, or one without the tower's rot, wipes.
+    private void SoakTower(ActionResolved resolved, RotColor color)
+    {
+        foreach (var soak in resolved.Hits.Where(soak => !resolved.Killed.Contains(soak)))
+            towerDebuffs.Add(new TowerDebuff(soak, color));
+        if (resolved.Caster is not SimEnemy helper) return;
+        if (resolved.Hits.Count == 0) helper.Cast(color.TowerUnsoaked);
+        else if (resolved.Hits.Any(soaker => !soaker.HasStatus(color.RotStatusId))) helper.Cast(color.TowerSoakedWithoutRot);
     }
 
     private void ActivateTethers(int patch)
@@ -328,8 +347,12 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
         }
         var locals = Members(HelloWorldRole.Local, patch).ToArray();
         var remotes = Members(HelloWorldRole.Remote, patch).ToArray();
-        if (locals.Length == 2) localTethers.Add(world.Tether(locals[0], locals[1], TetherId.HWLocal, 10f, StatusId.HWLocalTether));
-        if (remotes.Length == 2) remoteTethers.Add(world.Tether(remotes[0], remotes[1], TetherId.HWRemote, 10f, StatusId.HWRemoteTether));
+        if (locals.Length == 2)
+            localTethers.Add(world.Tether(locals[0], locals[1], TetherId.HWLocal, 10f, StatusId.HWLocalTether)
+                .BreaksWhen(tether => world.Events.Elapsed >= tethersMeasuredFrom && tether.StretchLt(Geometry.HwTetherBreakDistance)));
+        if (remotes.Length == 2)
+            remoteTethers.Add(world.Tether(remotes[0], remotes[1], TetherId.HWRemote, 10f, StatusId.HWRemoteTether)
+                .BreaksWhen(tether => world.Events.Elapsed >= tethersMeasuredFrom && tether.StretchGt(Geometry.HwTetherBreakDistance)));
         tethersMeasuredFrom = world.Events.Elapsed + TetherFirstCheck;
     }
 
@@ -337,35 +360,41 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
     // leave one, so a player caught by both of those dies.
     private void ResolvePatch(int patch)
     {
-        var towers = state.Towers[patch];
         resolvedPatch = patch;
-        for (var i = 0; i < towerCasts.Length; i++)
-            foreach (var soak in towerCasts[i]?.Hits ?? [])
-                if (!soak.Killed) towerDebuffs.Add(new TowerDebuff(soak.Who, towers.ColorOf(i)));
         CheckWhoTheBugsReach(patch);
 
-        var nextStacks = new List<SimCharacter>();
-        foreach (var holder in stackHolders.Where(holder => holder.IsAlive()))
+        var lastStacks = stackHolders;
+        stackHolders = [];
+        foreach (var holder in lastStacks.Where(holder => holder.IsAlive()))
         {
             holder.RemoveStatus(StatusId.HWStack);
             GiveDebugger(holder, StatusId.HWImmuneStack);
-            if (burstHelpers?.Next(holder.Placement())?.Cast(Actions.CriticalSynchronizationBug, holder) is not { } stack) continue;
-            foreach (var hit in stack.Hits.Where(hit => !hit.Killed && hit.Who != holder))
-                PassBug(hit.Who, StatusId.HWImmuneStack, StatusId.HWStack, nextStacks);
+            Burst(Actions.CriticalSynchronizationBug, holder);
         }
 
-        var nextDefamations = new List<SimCharacter>();
-        foreach (var holder in defamationHolders.Where(holder => holder.IsAlive()))
+        var lastDefamations = defamationHolders;
+        defamationHolders = [];
+        foreach (var holder in lastDefamations.Where(holder => holder.IsAlive()))
         {
             holder.RemoveStatus(StatusId.HWDefamation);
             GiveDebugger(holder, StatusId.HWImmuneDefamation);
-            if (burstHelpers?.Next(holder.Placement())?.Cast(Actions.CriticalOverflowBug, holder) is not { } defamation) continue;
-            foreach (var hit in defamation.Hits.Where(hit => !hit.Killed && hit.Who != holder))
-                PassBug(hit.Who, StatusId.HWImmuneDefamation, StatusId.HWDefamation, nextDefamations);
+            Burst(Actions.CriticalOverflowBug, holder);
         }
+    }
 
-        stackHolders = nextStacks;
-        defamationHolders = nextDefamations;
+    private void Burst(EnemyAction bug, SimCharacter holder)
+    {
+        if (burstHelpers?.Next(holder.Placement()) is not { } helper) return;
+        burstTargets[helper] = holder;
+        helper.Cast(bug, holder);
+    }
+
+    // The bug passes to everyone else its burst reaches; the next holders gather as the bursts land.
+    private void PassBugs(ActionResolved resolved, ushort debuggerStatusId, ushort bugStatusId, List<SimCharacter> nextHolders)
+    {
+        if (resolved.Caster is not SimEnemy helper || !burstTargets.Remove(helper, out var holder)) return;
+        foreach (var hit in resolved.Hits.Where(hit => hit != holder && !resolved.Killed.Contains(hit)))
+            PassBug(hit, debuggerStatusId, bugStatusId, nextHolders);
     }
 
     // Each stack is shared by its holder and one blue tether, each defamation taken by one Christmas
@@ -518,19 +547,23 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
         }
     }
 
-    private void TickTethers(List<SimTether> tethers, Predicate<SimTether> breaks)
+    private const string LocalTetherName = "Christmas tether";
+    private const string RemoteTetherName = "blue tether";
+
+    // A tether breaks when its pair stretches it (local) or closes it (remote) past the break
+    // distance; one that outlives its pair, or an end of it, is the wipe.
+    public void OnTetherEnded(TetherEnded ended)
     {
-        foreach (var tether in tethers.Where(SimTether.IsAnyDead).ToList())
-        {
-            tethers.Remove(tether);
-            FailTether(tether);
-        }
-        if (world.Events.Elapsed < tethersMeasuredFrom) return;
-        foreach (var tether in tethers.Where(tether => breaks(tether)).ToList())
-        {
-            tethers.Remove(tether);
-            BreakTether(tether);
-        }
+        var tether = ended.Tether;
+        prepTethers.Remove(tether);
+        if (localTethers.Remove(tether)) EndTether(tether, ended.Reason, LocalTetherName);
+        else if (remoteTethers.Remove(tether)) EndTether(tether, ended.Reason, RemoteTetherName);
+    }
+
+    private void EndTether(SimTether tether, TetherEndReason reason, string name)
+    {
+        if (reason == TetherEndReason.Stretched) BreakTether(tether);
+        else FailTether(tether, name);
     }
 
     // The regression drops as the tether breaks; the hits follow, a raidwide from each end, each
@@ -538,9 +571,7 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
     // before they fall off is lethal.
     private void BreakTether(SimTether tether)
     {
-        if (tether.Resolved || tether.A is not { } a || tether.B is not { } b) return;
-        tether.Resolved = true;
-        tether.Despawn();
+        if (tether.A is not { } a || tether.B is not { } b) return;
         Placement[] ends = [a.Placement(), b.Placement()];
         world.Events.Add(ExpiryHitDelay, () =>
         {
@@ -548,25 +579,22 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
         });
     }
 
-    private void FailTether(SimTether tether)
+    private void FailTether(SimTether tether, string name)
     {
-        if (tether.Resolved) return;
-        tether.Resolved = true;
         tether.Despawn();
         if (wiped) return;
         // Its hit is the wipe; the loop's own must not get in first.
         wiped = true;
-        var reason = $"Hello World wipe: {(tether.A is { } a ? Who(a) : "?")} and {(tether.B is { } b ? Who(b) : "?")}'s {TetherName(tether)} didn't break in time";
+        var reason = $"Hello World wipe: {(tether.A is { } a ? Who(a) : "?")} and {(tether.B is { } b ? Who(b) : "?")}'s {name} didn't break in time";
         world.Announce($"{reason}.");
-        if (burstHelpers?.Next(tether.A?.Placement() ?? default)?.Cast(Actions.HwTetherFail) is null)
-            party.WipeAllPlayers(ActionId.HwTetherFail, reason);
+        if (burstHelpers?.Next(tether.A?.Placement() ?? default) is { } helper) helper.Cast(Actions.HwTetherFail);
+        else party.WipeAllPlayers(ActionId.HwTetherFail, reason);
     }
-
-    private string TetherName(SimTether tether) => localTethers.Contains(tether) ? "Christmas tether" : remoteTethers.Contains(tether) ? "blue tether" : "tether";
 
     private void CheckTethersExpired()
     {
-        foreach (var tether in localTethers.Concat(remoteTethers).ToList()) FailTether(tether);
+        foreach (var tether in localTethers) FailTether(tether, LocalTetherName);
+        foreach (var tether in remoteTethers) FailTether(tether, RemoteTetherName);
         localTethers.Clear();
         remoteTethers.Clear();
     }
@@ -580,8 +608,8 @@ public sealed class TopP3HelloWorldScenario : IMultiplayerReplayable
         foreach (var member in party.ActiveMembers().Where(member => member.HasStatus(statusId)).ToList())
         {
             member.RemoveStatus(statusId);
-            if (burstHelpers?.Next(member.Placement())?.Cast(expired, member) is null)
-                Wipe(expired.ActionId, $"{Who(member)}'s {Natives.Data.ActionName(expired.ActionId)} ran out");
+            if (burstHelpers?.Next(member.Placement()) is { } helper) helper.Cast(expired, member);
+            else Wipe(expired.ActionId, $"{Who(member)}'s {Natives.Data.ActionName(expired.ActionId)} ran out");
         }
     }
 

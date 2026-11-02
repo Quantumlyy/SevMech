@@ -388,9 +388,13 @@ public sealed class TopP3IntermissionScenario : IMultiplayerReplayable
         var alive = party.ActiveMembers().ToList();
         if (alive.Count == 0) return;
         var target = alive[state.Rng.NextInt(alive.Count)];
-        if (helpers?.Next(Centre)?.Cast(JumpOf(kind), target) is not { } cast) return;
-        foreach (var hit in cast.Hits)
-            jumpVictims.Add(hit.Who);
+        helpers?.Next(Centre)?.Cast(JumpOf(kind), target);
+    }
+
+    public void OnActionResolved(ActionResolved resolved)
+    {
+        if (resolved.Action != Actions.SniperCannonJump && resolved.Action != Actions.HighPoweredSniperCannonJump) return;
+        foreach (var hit in resolved.Hits) jumpVictims.Add(hit);
     }
 
     private void ResolveSniperCannons()

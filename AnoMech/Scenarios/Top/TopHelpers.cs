@@ -22,7 +22,7 @@ public sealed class TopHelpers
         this.world = world;
         this.tag = tag;
         plain = new EnemySpawnConfig(
-            BNpcBaseId: BNpcBaseId.OmegaHelper,
+            BNpcBaseId: TopReplayData.DutyInitData.HelperPool.BNpcBaseId,
             NameId: nameId,
             Level: 1,
             Targetable: false,
