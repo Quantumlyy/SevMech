@@ -26,7 +26,13 @@ public sealed class TopP3MonitorsScenario : IMultiplayerReplayable
     public IReadOnlyList<string> SettingsConflicts => settingsWindow.Overrides.Validate().Problems;
     private readonly TopP3MonitorsSettingsWindow settingsWindow = new();
 
-    public IReadOnlyList<IScenarioAi> AiStrats => [new TopP3MonitorsAi(automarkers: true), new TopP3MonitorsAi(automarkers: false)];
+    public IReadOnlyList<IScenarioAi> AiStrats =>
+    [
+        new TopP3MonitorsAi(new TopP3MonitorsNaLineup(), automarkers: true),
+        new TopP3MonitorsAi(new TopP3MonitorsNaLineup(), automarkers: false),
+        new TopP3MonitorsAi(new TopP3MonitorsLpduLineup(), automarkers: true),
+        new TopP3MonitorsAi(new TopP3MonitorsLpduLineup(), automarkers: false),
+    ];
 
     private static readonly (ushort Id, string Key)[] GimmickTimelines = [(6738, "mon_sp/gimmick/z3of_boss_gimmick06")];
 

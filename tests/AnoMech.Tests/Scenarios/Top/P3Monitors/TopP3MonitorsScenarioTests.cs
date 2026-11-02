@@ -13,8 +13,10 @@ namespace AnoMech.Tests;
 // and C, OT's south at SH and R, SH's west at MT and M2. A Left boss mirrors it all in x.
 public class TopP3MonitorsScenarioTests
 {
-    private static NegativeRun<TopP3MonitorsScenario> Monitors(PartyRole player, MonitorCleave bossSide = MonitorCleave.Right)
-        => Negative<TopP3MonitorsScenario>(player)
+    private const int Lpdu = 3;
+
+    private static NegativeRun<TopP3MonitorsScenario> Monitors(PartyRole player, MonitorCleave bossSide = MonitorCleave.Right, int strat = 0)
+        => Negative<TopP3MonitorsScenario>(player, strat)
             .Overrides<TopP3MonitorsStateOverrides>(o =>
             {
                 o.BossSide = bossSide;
@@ -51,4 +53,31 @@ public class TopP3MonitorsScenarioTests
         => Monitors(ShieldHealer)
             .TeleportAt(19.9f, to: new(-13, 9))
             .ShouldKill(ActionId.OversampledWaveCannonAoe, ShieldHealer, MeleeDpsB);
+
+    // LPDU lines up RH SH MT OT M1 M2 R C, so SH, OT and M1 carry the monitors in that order. With
+    // Omega's firing east: SH (-9.5,-12.5) fires west at MT (-12.5,-4.5) and M2 (-12.5,4.5), OT
+    // (9.7,-8.4) north at RH (-2.5,-18) and SH, M1 (9.8,8.3) south at R (-6,10.5) and C (-2.5,18),
+    // and Omega's monitor takes OT and M1. A Left boss mirrors it all in x.
+
+    // Still north of OT, so its monitor takes RH as before, now on Omega's side as well.
+    [TestCase(MonitorCleave.Right)]
+    [TestCase(MonitorCleave.Left)]
+    public void LpduStandingOnOmegasSideDies(MonitorCleave bossSide)
+        => Monitors(RegenHealer, bossSide, Lpdu)
+            .TeleportAt(19.9f, to: new(bossSide == MonitorCleave.Left ? -9 : 9, -17))
+            .ShouldKill(ActionId.OversampledWaveCannonAoe, RegenHealer);
+
+    // Still west of SH, so its monitor takes MT and M2 as before, now inside each other's spread.
+    [Test]
+    public void LpduOverlappingSpreadsKillBoth()
+        => Monitors(MainTank, strat: Lpdu)
+            .TeleportAt(19.9f, to: new(-12.5f, 0.5f))
+            .ShouldKill(ActionId.OversampledWaveCannonAoe, MainTank, MeleeDpsB);
+
+    // Still on Omega's side and still cleaving south at R and C, but close enough to R to share spreads.
+    [Test]
+    public void LpduMonitorInsideItsOwnTargetsSpreadKillsBoth()
+        => Monitors(MeleeDpsA, strat: Lpdu)
+            .TeleportAt(19.9f, to: new(0.5f, 9.5f))
+            .ShouldKill(ActionId.OversampledWaveCannonAoe, MeleeDpsA, PhysRangedDps);
 }
