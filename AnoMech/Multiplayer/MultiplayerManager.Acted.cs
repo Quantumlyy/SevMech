@@ -33,16 +33,27 @@ public sealed partial class MultiplayerManager
             _ = Send(new ActedMessage(MyPeerId, action.Step, action.ActionType, action.ActionId, r.HostActorOfObject(action.TargetId), action.CastSeconds));
     }
 
-    // Its own seat only, a player's action only.
+    // Its own seat only, a player's action only. A limit break's resolve, and the gauge it spends,
+    // are the host's answer to the peer's own report (PeerLimitBreakMessage).
     private void OnPeerActed(ActedMessage acted)
     {
         if (Session.RoleOf(acted.PeerId) is not { } seat || !running || !hostScenarioStarted) return;
         if (!Enum.IsDefined(acted.Step) || acted.ActionType != ActionType.Action || !SimAssets.AllowAction(acted.ActionId, "a player's action")) return;
         ShowAction(seat, acted.Step, acted.ActionId, HostObjectOf(acted.Target), NetGuard.Clamp(acted.CastSeconds, 0f, NetGuard.MaxPlayerCastSeconds));
-        // The party has one gauge, the host's, which every client shows: a peer's own client only
-        // emptied its copy.
-        if (acted.Step == PlayerActionStep.Resolved && LimitBreakHandler.IsLimitBreak(acted.ActionId))
-            Plugin.Game.World.Party.LimitBreak.Spend();
+        if (acted.Step == PlayerActionStep.CastStarted && LimitBreakHandler.IsLimitBreak(acted.ActionId))
+            ShowLimitBreakCast(seat, acted.ActionId);
+    }
+
+    // The server's limit break cast control on every seat. The presser's own sim sent its own
+    // actor's already, so that one is tagged for it to skip; the rest reach it from here.
+    private void ShowLimitBreakCast(PartyRole seat, uint actionId)
+    {
+        if (recorder is not { } r || Plugin.Game.World.Party.Get(seat) is not { } user) return;
+        foreach (var member in Plugin.Game.World.Party.AllMembers())
+        {
+            if (ReferenceEquals(member, user)) r.ShownBy(seat, () => member.ActorControl.LimitBreakCast(actionId, true));
+            else member.ActorControl.LimitBreakCast(actionId, false);
+        }
     }
 
     // As the server shows a seat's own action to the party: its cast bar, the cast's cancel, the

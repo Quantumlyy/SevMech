@@ -317,8 +317,10 @@ public sealed partial class MultiplayerManager
                     NetGuard.TryPosition(limitBreak.LocationX, limitBreak.LocationY, limitBreak.LocationZ));
                 DiagnosticLog.Info($"[Multiplayer] Host: {who} ({limitBreakRole})'s {Natives.Data.ActionName(limitBreak.ActionId)} landed, aimed from "
                                     + $"({aim.Origin.X:F2},{aim.Origin.Z:F2}) heading {aim.Heading:F3}{(aim.Location is { } at ? $" at ({at.X:F2},{at.Z:F2})" : "")}.");
-                // The party sees it resolve from here, the reporter included (see PeerProxy).
+                // The party sees it resolve from here, the reporter included (see PeerProxy), and
+                // the one gauge, the host's, is spent: the reporter's own client only emptied its copy.
                 LimitBreakHandler.Announce(party, puppet, limitBreak.ActionId);
+                party.LimitBreak.Spend();
                 (Plugin.Game.ActiveScenario as IPartyLimitBreakScenario)?.OnPartyLimitBreak(limitBreakRole, limitBreak.ActionId, aim);
                 break;
             }
