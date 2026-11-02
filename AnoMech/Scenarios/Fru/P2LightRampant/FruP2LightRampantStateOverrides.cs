@@ -14,7 +14,7 @@ public sealed class FruP2LightRampantStateOverrides
     public bool? SupportPairs { get; set; }
     // The four who start with a Lightsteeped stack.
     public IReadOnlyList<PartyRole>? InitiallySteeped { get; set; }
-    // Loop slot 0-5 of the first Powerful Light target; the second is the next slot.
+    // Spot 0-5 on the chain loop, clockwise from north, of the first Powerful Light target; the second is the next.
     public int? WeightSlot { get; set; }
 
     // Bait = one of the two Luminous Hammer baiters; Tether = one of the six chained.

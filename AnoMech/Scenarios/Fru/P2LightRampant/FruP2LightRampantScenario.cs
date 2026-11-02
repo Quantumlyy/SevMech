@@ -19,7 +19,7 @@ public sealed class FruP2LightRampantScenario : IScenario
     public string Name => "Light Rampant";
     public IPhase Phase => FruZone.P2;
 
-    public IReadOnlyList<IScenarioAi> AiStrats => [new FruP2LightRampantAi()];
+    public IReadOnlyList<IScenarioAi> AiStrats => [new FruP2LightRampantAi(), new FruP2LightRampantLpduAi()];
 
     public void DrawSettings() => settingsWindow.Draw();
     public void DrawPerPlayerSettings() => settingsWindow.DrawPerPlayer();
@@ -77,7 +77,6 @@ public sealed class FruP2LightRampantScenario : IScenario
         world.Events.Add(3f, () => usurper?.Cast(Actions.LightRampant));
         world.Events.Add(3f, () => usurper?.VoiceLine(VoiceLineId.LightRampant));
         world.Events.Add(8.75f, AssignDebuffs);
-        world.Events.Add(8.75f, () => Chain(StatusId.ChainsOfEverlastingLight, TetherId.ChainsOfEverlastingLight, CursesAt - 8.75f));
         world.Events.Add(11f, () => usurper?.SetTargetable(false));
         world.Events.Add(11f, ShowTowers);
         world.Events.Add(11.1f, () => usurper?.PlayActionTimeline(TimelineId.UsurperHide));
@@ -91,8 +90,7 @@ public sealed class FruP2LightRampantScenario : IScenario
             world.Events.Add(showsAt + PuddleFadesAfterShowing, () => puddles.Fade(w));
             world.Events.Add(showsAt + PuddleLastsAfterShowing, () => puddles.Remove(w));
         }
-        world.Events.Add(CursesAt, () => Chain(StatusId.CurseOfEverlastingLight, TetherId.CurseOfEverlastingLight, CursesEndAt - CursesAt)
-            .ForEach(curse => curse.BreaksWhen(t => t.StretchLt(CurseMinLength))));
+        world.Events.Add(CursesAt, Curses);
         world.Events.Add(TowerAt, BrightHunger);
         world.Events.Add(19.6f, () => SpawnOrbs(first: true));
         world.Events.Add(22.43f, () => SpawnOrbs(first: false));
@@ -134,21 +132,40 @@ public sealed class FruP2LightRampantScenario : IScenario
                 member.AddStatus(StatusId.Lightsteeped, 36f, stacks, overrideStacks: true)?.ShownAsFrom(usurper);
             if (state.BaitsHammer(role)) member.AttachLockonVfx(LockonId.LuminousHammer);
         }
-        foreach (var role in state.Weights)
-            world.Party.Get(role)?.AddStatus(StatusId.WeightOfLight, 16f);
+        var loop = ChainLoop();
+        for (var i = 0; i < loop.Count; i++)
+            Link(loop[i], loop[(i + 1) % loop.Count], StatusId.ChainsOfEverlastingLight, TetherId.ChainsOfEverlastingLight, CursesAt - 8.75f);
+        foreach (var weight in Weights()) weight.AddStatus(StatusId.WeightOfLight, 16f);
     }
 
-    private List<SimTether> Chain(ushort statusId, ushort tetherId, float duration)
+    // The two the WeightSlot chain links.
+    private IEnumerable<SimCharacter> Weights()
+        => links.Count > state.WeightSlot ? new[] { links[state.WeightSlot].A, links[state.WeightSlot].B }.OfType<SimCharacter>() : [];
+
+    // Each chained player links to their neighbours around the boss: the ring they stand in,
+    // clockwise from north.
+    private List<SimCharacter> ChainLoop()
+        => Enum.GetValues<PartyRole>()
+            .Where(role => !state.BaitsHammer(role))
+            .Select(world.Party.Get)
+            .Where(member => member is not null && member.IsAlive())
+            .OrderBy(member => MathF.Atan2(member!.Position.X, -member.Position.Z))
+            .ToList()!;
+
+    // On the same pairs the chains linked.
+    private void Curses()
     {
-        var chain = new List<SimTether>();
-        for (var i = 0; i < 6; i++)
-        {
-            var (from, to) = state.ChainLink(i);
-            world.Party.Get(from)?.AddStatus(statusId, duration);
-            chain.Add(world.Tether(world.Party.Get(from), world.Party.Get(to), tetherId, duration));
-        }
-        links.AddRange(chain);
-        return chain;
+        foreach (var (a, b) in links.Select(chain => (chain.A, chain.B)).ToList())
+            Link(a, b, StatusId.CurseOfEverlastingLight, TetherId.CurseOfEverlastingLight, CursesEndAt - CursesAt)
+                .BreaksWhen(t => t.StretchLt(CurseMinLength));
+    }
+
+    private SimTether Link(SimCharacter? from, SimCharacter? to, ushort statusId, ushort tetherId, float duration)
+    {
+        from?.AddStatus(statusId, duration);
+        var link = world.Tether(from, to, tetherId, duration);
+        links.Add(link);
+        return link;
     }
 
     private void BreakChainsOnSnappedLink(TetherEnded ended)
@@ -234,9 +251,8 @@ public sealed class FruP2LightRampantScenario : IScenario
     private void PowerfulLight()
     {
         var i = HammerHelper;
-        foreach (var role in state.Weights)
-            if (world.Party.Get(role) is { } target && target.IsAlive())
-                usurper?.CastFromHelper(Actions.PowerfulLight, target, at: HelperRests[i++]);
+        foreach (var target in Weights().Where(w => w.IsAlive()).ToList())
+            usurper?.CastFromHelper(Actions.PowerfulLight, target, at: HelperRests[i++]);
     }
 
     private void ShowCenterTower()
